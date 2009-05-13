@@ -526,7 +526,7 @@ class DiceBot(Bot):
         if re.search(MEMES[11], args, re.I):
             return "Your mother's lipstick."
 
-MEMES = [r'(spartans!\s+what is your profession\?)',
+MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
         r'(tyche!\s+what is your profession\?)',
         r'((hello(,|\.)\s+)?my name is inigo montoya(,|\.)\s+you killed my father(,|\.)\s+prepare to die(\.|!)?)',
         r'(is this battletoads\?)',
