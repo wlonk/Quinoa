@@ -493,6 +493,8 @@ class DiceBot(Bot):
         return
     def meme(self, msg):
         args = msg.getBody()
+        if rand(1, 30) == 1:
+            return "Your mom!"
         if re.search(MEMES[0], args, re.I):
             return "Aaooh! Aaooh! Aaooh!"
         if re.search(MEMES[1], args, re.I):
@@ -525,6 +527,8 @@ class DiceBot(Bot):
             return "I'm not left-handed either."
         if re.search(MEMES[11], args, re.I):
             return "Your mother's lipstick."
+        if re.search(MEMES[12], args, re.I):
+            return "YA RLY."
 
 MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
         r'(tyche!\s+what is your profession\?)',
@@ -538,6 +542,7 @@ MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
         r'(.*\bBARMAN\b.*)',
         r"(i'm not left( |-)handed(!|\.))",
         r'(what do you have on under (that( kilt)?|there)\?)',
+        r'(o rly\??)',
         ]
 
 #~~~~~~~~~~~~~~~~~~~~~~ Run the bot.
