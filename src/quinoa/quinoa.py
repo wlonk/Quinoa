@@ -107,7 +107,7 @@ class Bot(object):
             except KeyboardInterrupt:
                 break
         return
-    def help(self, args):
+    def help(self, msg):
         """This provides help, duh."""
         args = msg.getBody()
         try:

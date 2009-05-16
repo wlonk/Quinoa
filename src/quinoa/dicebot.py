@@ -7,7 +7,7 @@ import xmpp
 from collections import defaultdict
 from random import randint as rand
 from math import ceil as ceiling
-from roombot import Bot
+from quinoa import Bot
 
 def owod(dice, diff, spec=False, will=False):
     def norm_roll(dice):

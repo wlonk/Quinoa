@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='quinoa',
-    version='0.2',
+    version='0.2.2',
     author='Kit La Touche',
     author_email='kit.la.t@gmail.com',
     description="This is a base class for making Jabber bots that are aware" \
