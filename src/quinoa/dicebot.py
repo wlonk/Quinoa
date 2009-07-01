@@ -240,9 +240,9 @@ class DiceBot(Bot):
         join.setBody('join ooc@rooms.transneptune.net')
         self.join(join)
     def register_commands(self):
-        self.commands[r'mode\b'] = self.mode
-        self.commands[r'roll\b'] = self.roll
-        self.commands[r'init\b'] = self.initiative
+        self.commands[r'[Mm]ode\b'] = self.mode
+        self.commands[r'[Rr]oll\b'] = self.roll
+        self.commands[r'[Ii]nit\b'] = self.initiative
         self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
     def mode(self, msg):
         """Set or view the bot's current game mode.
@@ -549,6 +549,6 @@ MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
 
 if __name__ == "__main__":
     b = DiceBot('test@transneptune.net', 'Tyche', '^^password^^')
-    b.mode = "owod"
+    b.mode = "h+e"
     b.serve()
 

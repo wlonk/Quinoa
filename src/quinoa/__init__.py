@@ -1,1 +1,1 @@
-from quinoa import *
+from quinoa import Bot
