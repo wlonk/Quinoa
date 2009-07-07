@@ -5,6 +5,9 @@ import re
 import shlex
 import time
 import xmpp
+import sqlalchemy.ext.declarative
+import sqlalchemy.orm
+import sqlalchemy
 from optparse import OptionParser
 from collections import defaultdict
 from random import randint as rand
@@ -12,13 +15,6 @@ from math import ceil as ceiling
 from quinoa import Bot
 
 class User(object):
-    objects = {}
-    def __new__(self, cls, email, *args, **kwargs):
-        if email in cls.objects:
-            return cls.objects[email]
-        obj = super(User, cls).__new__(cls)
-        cls.objects[email] = obj
-        return obj
     def __init__(self, email, batsignal, *names):
         self.email = email
         self.batsignal = batsignal
@@ -297,9 +293,9 @@ class DiceBot(Bot):
             for v in User.objects.values():
                 if args in v.names:
                     ret.append(v)
-            return ' or '.join(unicode(x) for x in ret)
+            return ' a.k.a. '.join(unicode(x) for x in ret)
     def batsignal(self, msg):
-        for u in User.objects.values():
+        for u in session.query(User):
             if u.batsignal:
                 self.invite(u)
     def invite(self, user):
