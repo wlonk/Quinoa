@@ -25,7 +25,7 @@ class JabberOptionParser(OptionParser):
         raise ValueError, "incorrect option or argument"
 
 # ~~~~~~~ DATABASE definition
-engine = sqlalchemy.create_engine('sqlite:///tyche.db')
+engine = sqlalchemy.create_engine('sqlite:////home/kit/Desktop/hg-repos/quinoa/tyche.db')
 Session = sqlalchemy.orm.sessionmaker(bind=engine)
 
 Base = sqlalchemy.ext.declarative.declarative_base()
@@ -59,6 +59,7 @@ class Alias(Base):
     def __unicode__(self):
         return self.name
     __str__ = __unicode__
+
 Base.metadata.create_all(engine)
 # ~~~~~~~ END DATABASE
 
