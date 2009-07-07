@@ -5,7 +5,9 @@ import re
 import shlex
 import time
 import xmpp
+import xmpp.simplexml
 import sqlalchemy.ext.declarative
+import sqlalchemy.orm.exc
 import sqlalchemy.orm
 import sqlalchemy
 from optparse import OptionParser
@@ -14,16 +16,51 @@ from random import randint as rand
 from math import ceil as ceiling
 from quinoa import Bot
 
-class User(object):
-    def __init__(self, email, batsignal, *names):
+# ~~~~~~~ Special Option Parsing
+
+class JabberOptionParser(OptionParser):
+    def exit(self, *args, **kwargs):
+        raise ValueError, "something made optparse exit."
+    def error(self, *args, **kwargs):
+        raise ValueError, "incorrect option or argument"
+
+# ~~~~~~~ DATABASE definition
+engine = sqlalchemy.create_engine('sqlite:///tyche.db')
+Session = sqlalchemy.orm.sessionmaker(bind=engine)
+
+Base = sqlalchemy.ext.declarative.declarative_base()
+class User(Base):
+    __tablename__ = 'users'
+    email = sqlalchemy.Column(sqlalchemy.Unicode, primary_key=True)
+    batsignal = sqlalchemy.Column(sqlalchemy.Boolean)
+    def __init__(self, email):
         self.email = email
-        self.batsignal = batsignal
-        self.names = names
+        self.batsignal = True
     def __unicode__(self):
-        aliases = ', '.join(self.names[1:])
+        aliases = ' a.k.a. '.join(unicode(a) for a in self.aliases)
         if not aliases:
-            aliases = 'None'
-        return "%s (%s, %s)" % (self.names[0], aliases, self.email)
+            aliases = 'No-name'
+        bats = ''
+        if not self.batsignal:
+            bats = 'not '
+        return "%s (%s, %son the batsignal)" % (aliases, self.email, bats)
+    __str__ = __unicode__
+
+class Alias(Base):
+    __tablename__ = 'aliases'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    user_email = sqlalchemy.Column(sqlalchemy.Unicode, \
+                             sqlalchemy.ForeignKey('users.email'))
+    name = sqlalchemy.Column(sqlalchemy.Unicode)
+    user = sqlalchemy.orm.relation(User, \
+            backref=sqlalchemy.orm.backref('aliases', order_by=id))
+    def __init__(self, name):
+        self.name = name
+    def __unicode__(self):
+        return self.name
+    __str__ = __unicode__
+Base.metadata.create_all(engine)
+# ~~~~~~~ END DATABASE
 
 def owod(dice, diff, spec=False, will=False):
     def norm_roll(dice):
@@ -260,10 +297,14 @@ class DiceBot(Bot):
         self.commands[r'[Rr]oll\b'] = self.roll
         self.commands[r'[Ii]nit\b'] = self.initiative
         self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
-        self.commands[r'account\b'] = self.remember_me
-        self.commands[r'who is\b'] = self.who_is
+        self.commands[r'[Aa]ccount\b'] = self.remember_me
+        self.commands[r'[Ww]ho is\b'] = self.who_is
         self.commands[r'batsignal'] = self.batsignal
     def remember_me(self, msg):
+        """Usage: account [-q] space separated aliases "with quotes for multiword aliases"
+
+        Options:
+            -q: do not subscribe to the BATSIGNAL"""
         if msg.getType() == 'groupchat':
             return "Please use this in a private chat."
         args = msg.getBody()
@@ -272,35 +313,60 @@ class DiceBot(Bot):
         except:
             return
         account = msg.getFrom().getNode() + '@' + msg.getFrom().getDomain()
-        parser = OptionParser()
+        parser = JabberOptionParser()
         parser.add_option("-q", action="store_true", dest="quiet",
                 help="Ignore the BATSIGNAL.")
         opts, args = parser.parse_args([s.decode('utf-8') for s in \
                 shlex.split(args.encode('utf-8'))])
-        user = User(account, opts.quiet, *args)
-        # TODO add memory magic
-        return "%s\n%s" % (opts, args)
-    def who_is(self, msg):
-        args = msg.getBody()
+        session = Session()
         try:
-            cmd, args = args.split(None, 1)
+            user = session.query(User).filter_by(email=account).one()
+        except sqlalchemy.orm.exc.NoResultFound:
+            user = User(account)
+        session.add(user)
+        if opts.quiet:
+            user.batsignal = False
+        else:
+            user.batsignal = True
+        if args:
+            user.aliases = [Alias(x) for x in args]
+        session.commit()
+        return unicode(user)
+    def who_is(self, msg):
+        """Ask who someone is, by alias or email."""
+        args = msg.getBody().strip().rstrip('?').strip()
+        try:
+            who, is_, args = args.split(None, 2)
         except:
             return
-        try:
-            return unicode(User.objects[args])
-        except KeyError:
-            ret = []
-            for v in User.objects.values():
-                if args in v.names:
-                    ret.append(v)
-            return ' a.k.a. '.join(unicode(x) for x in ret)
+        session = Session()
+        ret = []
+        for v in session.query(User).all():
+            if args.lower() == v.email.lower():
+                ret.append(v)
+            if args.lower() in (x.name.lower() for x in v.aliases):
+                ret.append(v)
+        return '\n'.join(unicode(x) for x in ret) or "No idea."
     def batsignal(self, msg):
-        for u in session.query(User):
+        """Call for the troops!"""
+        if msg.getType() != 'groupchat':
+            return "Only use this from a Jabber room."
+        room = msg.getFrom()
+        room.setResource('')
+        session = Session()
+        for u in session.query(User).all():
             if u.batsignal:
-                self.invite(u)
-    def invite(self, user):
-        # TODO do the magic
-        pass
+                self.invite(room, xmpp.protocol.JID(u.email))
+    def invite(self, room, jid):
+        msg = xmpp.protocol.Message(to=jid, frm=self.jid)
+        body = xmpp.simplexml.Node(tag='x',
+                                   attrs={
+                                    'xmlns': 'jabber:x:conference',
+                                    'jid': room,
+                                    'reason': 'I SUMMON THEE!'
+                                   })
+        msg.addChild(node=body)
+        self.conn.send(msg)
     def mode(self, msg):
         """Set or view the bot's current game mode.
             * mode

@@ -31,9 +31,9 @@ class Bot(object):
         self.conn = None
         self._finished = False
         self.commands = RegDict() # dict of str -> self.method
-        self.commands[r'join\b'] = self.join
-        self.commands[r'leave\b'] = self.leave
-        self.commands[r'help\b'] = self.help
+        self.commands[r'[Jj]oin\b'] = self.join
+        self.commands[r'[Ll]eave\b'] = self.leave
+        self.commands[r'[Hh]elp\b'] = self.help
         self.register_commands()
     def log(self, text):
         """
