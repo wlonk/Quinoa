@@ -2,12 +2,32 @@
 # vim: set fileencoding=utf-8 :
 
 import re
+import shlex
 import time
 import xmpp
+from optparse import OptionParser
 from collections import defaultdict
 from random import randint as rand
 from math import ceil as ceiling
 from quinoa import Bot
+
+class User(object):
+    objects = {}
+    def __new__(self, cls, email, *args, **kwargs):
+        if email in cls.objects:
+            return cls.objects[email]
+        obj = super(User, cls).__new__(cls)
+        cls.objects[email] = obj
+        return obj
+    def __init__(self, email, batsignal, *names):
+        self.email = email
+        self.batsignal = batsignal
+        self.names = names
+    def __unicode__(self):
+        aliases = ', '.join(self.names[1:])
+        if not aliases:
+            aliases = 'None'
+        return "%s (%s, %s)" % (self.names[0], aliases, self.email)
 
 def owod(dice, diff, spec=False, will=False):
     def norm_roll(dice):
@@ -244,6 +264,47 @@ class DiceBot(Bot):
         self.commands[r'[Rr]oll\b'] = self.roll
         self.commands[r'[Ii]nit\b'] = self.initiative
         self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
+        self.commands[r'account\b'] = self.remember_me
+        self.commands[r'who is\b'] = self.who_is
+        self.commands[r'batsignal'] = self.batsignal
+    def remember_me(self, msg):
+        if msg.getType() == 'groupchat':
+            return "Please use this in a private chat."
+        args = msg.getBody()
+        try:
+            cmd, args = args.split(None, 1)
+        except:
+            return
+        account = msg.getFrom().getNode() + '@' + msg.getFrom().getDomain()
+        parser = OptionParser()
+        parser.add_option("-q", action="store_true", dest="quiet",
+                help="Ignore the BATSIGNAL.")
+        opts, args = parser.parse_args([s.decode('utf-8') for s in \
+                shlex.split(args.encode('utf-8'))])
+        user = User(account, opts.quiet, *args)
+        # TODO add memory magic
+        return "%s\n%s" % (opts, args)
+    def who_is(self, msg):
+        args = msg.getBody()
+        try:
+            cmd, args = args.split(None, 1)
+        except:
+            return
+        try:
+            return unicode(User.objects[args])
+        except KeyError:
+            ret = []
+            for v in User.objects.values():
+                if args in v.names:
+                    ret.append(v)
+            return ' or '.join(unicode(x) for x in ret)
+    def batsignal(self, msg):
+        for u in User.objects.values():
+            if u.batsignal:
+                self.invite(u)
+    def invite(self, user):
+        # TODO do the magic
+        pass
     def mode(self, msg):
         """Set or view the bot's current game mode.
             * mode
