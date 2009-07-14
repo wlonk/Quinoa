@@ -63,6 +63,16 @@ class Alias(Base):
 Base.metadata.create_all(engine)
 # ~~~~~~~ END DATABASE
 
+# ~~~~~~~ STATE CLASS
+class State(object):
+    def __init__(self, *args, **kwargs):
+        self.old_msgs = []
+    def process(self, msg):
+        ret = ', '.join(self.old_msgs)
+        self.old_msgs.append(msg.getBody().strip('c '))
+        return ret
+# ~~~~~~~ END STATE
+
 def owod(dice, diff, spec=False, will=False):
     def norm_roll(dice):
         return sorted(rand(1, 10) for x in xrange(dice))
@@ -289,6 +299,10 @@ def generic(num, size):
     return ', '.join(map(str, (rand(1, size) for x in xrange(num))))
 
 class DiceBot(Bot):
+    def __init__(self, *args, **kwargs):
+        Bot.__init__(self, *args, **kwargs)
+        self.convos = {}
+        self.mode = 'h+e'
     def on_connect(self):
         join = xmpp.protocol.Message()
         join.setBody('join ooc@rooms.transneptune.net')
@@ -300,7 +314,8 @@ class DiceBot(Bot):
         self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
         self.commands[r'[Aa]ccount\b'] = self.remember_me
         self.commands[r'[Ww]ho is\b'] = self.who_is
-        self.commands[r'batsignal'] = self.batsignal
+        self.commands[r'(?i)batsignal$'] = self.batsignal
+        self.commands[r'c\b'] = self.convo
     def remember_me(self, msg):
         """Usage: account [-q] space separated aliases "with quotes for multiword aliases"
 
@@ -347,7 +362,7 @@ class DiceBot(Bot):
                 ret.append(v)
             if args.lower() in (x.name.lower() for x in v.aliases):
                 ret.append(v)
-        return '\n'.join(unicode(x) for x in ret) or "No idea."
+        return '\n'.join(unicode(x) for x in ret)
     def batsignal(self, msg):
         """Call for the troops!"""
         if msg.getType() != 'groupchat':
@@ -368,6 +383,14 @@ class DiceBot(Bot):
                                    })
         msg.addChild(node=body)
         self.conn.send(msg)
+    def convo(self, msg):
+        other_jid = msg.getFrom()
+        try:
+            state = self.convos[other_jid]
+        except KeyError:
+            state = State()
+            self.convos[other_jid] = state
+        return state.process(msg)
     def mode(self, msg):
         """Set or view the bot's current game mode.
             * mode
@@ -673,6 +696,5 @@ MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
 
 if __name__ == "__main__":
     b = DiceBot('test@transneptune.net', 'Tyche', '^^password^^')
-    b.mode = "h+e"
     b.serve()
 
