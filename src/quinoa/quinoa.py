@@ -187,7 +187,7 @@ class Bot(object):
                     typ='unavailable',
                     status='So long, and thanks for all the dice?'))
         self.rooms.pop(roomname + "@" + server)
-    def __send(self, to_jid, text, type):
+    def _send(self, to_jid, text, type):
         if type == 'groupchat':
             to_jid.setResource('')
         self.conn.send(xmpp.protocol.Message(to_jid, text, type))
@@ -197,7 +197,9 @@ class Bot(object):
                     or node.getNamespace() == 'jabber:x:conference':
                 roomname = msg.getFrom().getNode()
                 servicename = msg.getFrom().getDomain()
-                return self.join("%s@%s" % (roomname, servicename))
+                self_msg = xmpp.protocol.Message()
+                self_msg.setBody("join %s@%s" % (roomname, servicename))
+                return self.join(self_msg)
         text = msg.getBody()
         if msg.getType() == 'groupchat':
             fromroom = msg.getFrom()
@@ -214,7 +216,7 @@ class Bot(object):
             except Exception, e:
                 reply = "Bad command: %s" % e
             if reply:
-                self.__send(msg.getFrom(), reply, msg.getType())
+                self._send(msg.getFrom(), reply, msg.getType())
 
 if __name__ == "__main__":
     class TestBot(Bot):

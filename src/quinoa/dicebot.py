@@ -25,16 +25,18 @@ class JabberOptionParser(OptionParser):
         raise ValueError, "incorrect option or argument"
 
 # ~~~~~~~ DATABASE definition
-engine = sqlalchemy.create_engine('sqlite:////home/kit/Desktop/hg-repos/quinoa/tyche.db')
+path = '/home/kit/Desktop/hg-repos/quinoa/'
+#path = ''
+engine = sqlalchemy.create_engine('sqlite:///%styche.db' % path)
 Session = sqlalchemy.orm.sessionmaker(bind=engine)
 
 Base = sqlalchemy.ext.declarative.declarative_base()
 class User(Base):
     __tablename__ = 'users'
-    email = sqlalchemy.Column(sqlalchemy.Unicode, primary_key=True)
+    jid = sqlalchemy.Column(sqlalchemy.Unicode, primary_key=True)
     batsignal = sqlalchemy.Column(sqlalchemy.Boolean)
-    def __init__(self, email):
-        self.email = email
+    def __init__(self, jid):
+        self.jid = jid
         self.batsignal = True
     def __unicode__(self):
         aliases = ' a.k.a. '.join(unicode(a) for a in self.aliases)
@@ -43,14 +45,25 @@ class User(Base):
         bats = ''
         if not self.batsignal:
             bats = 'not '
-        return "%s (%s, %son the batsignal)" % (aliases, self.email, bats)
+        return "%s (%s, %son the batsignal)" % (aliases, self.jid, bats)
     __str__ = __unicode__
+
+class JidAlias(Base):
+    __tablename__ = 'jid_aliases'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    additional_jid = sqlalchemy.Column(sqlalchemy.Unicode)
+    primary_jid = sqlalchemy.Column(sqlalchemy.Unicode, \
+                             sqlalchemy.ForeignKey('users.jid'))
+    user = sqlalchemy.orm.relation(User, \
+            backref=sqlalchemy.orm.backref('jid_aliases', order_by=id))
+    def __init__(self, additional_jid):
+        self.additional_jid = additional_jid
 
 class Alias(Base):
     __tablename__ = 'aliases'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
-    user_email = sqlalchemy.Column(sqlalchemy.Unicode, \
-                             sqlalchemy.ForeignKey('users.email'))
+    user_jid = sqlalchemy.Column(sqlalchemy.Unicode, \
+                             sqlalchemy.ForeignKey('users.jid'))
     name = sqlalchemy.Column(sqlalchemy.Unicode)
     user = sqlalchemy.orm.relation(User, \
             backref=sqlalchemy.orm.backref('aliases', order_by=id))
@@ -60,18 +73,30 @@ class Alias(Base):
         return self.name
     __str__ = __unicode__
 
+class PendingConnection(Base):
+    __tablename__ = 'pending_connections'
+    primary_jid = sqlalchemy.Column(sqlalchemy.Unicode)
+    additional_jid = sqlalchemy.Column(sqlalchemy.Unicode, primary_key=True)
+    def __init__(self, primary_jid, additional_jid):
+        self.primary_jid = primary_jid
+        self.additional_jid = additional_jid
+    def process(self, msg):
+        if msg.getBody().strip('!').lower() == 'y':
+            ret = True
+            session = Session()
+            try:
+                user = session.query(User).filter_by(jid=self.primary_jid).one()
+            except sqlalchemy.orm.exc.NoResultFound:
+                return False
+            session.add(user)
+            user.jid_aliases.append(JidAlias(self.additional_jid))
+            session.commit()
+        else:
+            ret = False
+        return ret
+
 Base.metadata.create_all(engine)
 # ~~~~~~~ END DATABASE
-
-# ~~~~~~~ STATE CLASS
-class State(object):
-    def __init__(self, *args, **kwargs):
-        self.old_msgs = []
-    def process(self, msg):
-        ret = ', '.join(self.old_msgs)
-        self.old_msgs.append(msg.getBody().strip('c '))
-        return ret
-# ~~~~~~~ END STATE
 
 def owod(dice, diff, spec=False, will=False):
     def norm_roll(dice):
@@ -301,7 +326,6 @@ def generic(num, size):
 class DiceBot(Bot):
     def __init__(self, *args, **kwargs):
         Bot.__init__(self, *args, **kwargs)
-        self.convos = {}
         self.mode = 'h+e'
     def on_connect(self):
         join = xmpp.protocol.Message()
@@ -314,13 +338,14 @@ class DiceBot(Bot):
         self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
         self.commands[r'[Aa]ccount\b'] = self.remember_me
         self.commands[r'[Ww]ho is\b'] = self.who_is
-        self.commands[r'(?i)batsignal$'] = self.batsignal
-        self.commands[r'c\b'] = self.convo
+        self.commands[r'(?i)batsignal\??$'] = self.batsignal
+        self.commands[r'!\b'] = self.confirm_user
     def remember_me(self, msg):
         """Usage: account [-q] space separated aliases "with quotes for multiword aliases"
 
         Options:
-            -q: do not subscribe to the BATSIGNAL"""
+            -q: do not subscribe to the BATSIGNAL
+            -j: interpret aliases as other JIDs to associate with this user"""
         if msg.getType() == 'groupchat':
             return "Please use this in a private chat."
         args = msg.getBody()
@@ -332,11 +357,17 @@ class DiceBot(Bot):
         parser = JabberOptionParser()
         parser.add_option("-q", action="store_true", dest="quiet",
                 help="Ignore the BATSIGNAL.")
+        parser.add_option("-j", action="store_true", dest="jid",
+                help="Interpret args as JIDs.")
         opts, args = parser.parse_args([s.decode('utf-8') for s in \
                 shlex.split(args.encode('utf-8'))])
+        # if another JID is specified, create a State, add it to self.convos,
+        # and do a special call to self.send, to alert the other JID to reply
+        # with a confirmation or denial.  Then, return with a note about the
+        # behavior to expect.
         session = Session()
         try:
-            user = session.query(User).filter_by(email=account).one()
+            user = session.query(User).filter_by(jid=account).one()
         except sqlalchemy.orm.exc.NoResultFound:
             user = User(account)
         session.add(user)
@@ -344,10 +375,27 @@ class DiceBot(Bot):
             user.batsignal = False
         else:
             user.batsignal = True
-        if args:
+        if args and not opts.jid:
             user.aliases = [Alias(x) for x in args]
+            ret = unicode(user)
+        if args and opts.jid:
+            confirm_msg = "%s claims you are another Jabber identity of " \
+                 "theirs; if this is false, ignore this message or reply " \
+                 "with !n.  If it is true, reply with !y." \
+                 % (msg.getFrom().getNode() + "@" + msg.getFrom().getDomain())
+            from_ = msg.getFrom()
+            from_.setResource('')
+            for jid in args:
+                try:
+                    pend = session.query(PendingConnection) \
+                        .filter_by(additional_jid=jid).one()
+                except:
+                    pend = PendingConnection(unicode(from_), jid)
+                session.add(pend)
+                self._send(jid, confirm_msg, 'chat')
+            ret = "Message sent to other identity."
         session.commit()
-        return unicode(user)
+        return ret
     def who_is(self, msg):
         """Ask who someone is, by alias or email."""
         args = msg.getBody().strip().rstrip('?').strip()
@@ -358,22 +406,39 @@ class DiceBot(Bot):
         session = Session()
         ret = []
         for v in session.query(User).all():
-            if args.lower() == v.email.lower():
+            if args.lower() == v.jid.lower():
                 ret.append(v)
             if args.lower() in (x.name.lower() for x in v.aliases):
+                ret.append(v)
+            if args.lower() in (x.additional_jid.lower() \
+                    for x in v.jid_aliases):
                 ret.append(v)
         return '\n'.join(unicode(x) for x in ret)
     def batsignal(self, msg):
         """Call for the troops!"""
         if msg.getType() != 'groupchat':
             return "Only use this from a Jabber room."
+        session = Session()
+        if msg.getBody().endswith("?"):
+            ret = []
+            for u in session.query(User).all():
+                if u.batsignal:
+                    ret.append(u)
+            return '\n'.join(unicode(x) for x in ret)
         room = msg.getFrom()
         room.setResource('')
-        session = Session()
         for u in session.query(User).all():
             if u.batsignal:
-                self.invite(room, xmpp.protocol.JID(u.email))
+                self.invite(room, xmpp.protocol.JID(u.jid))
+    def user_in_room(self, room, jid):
+        """Checks a room for a JID's presence.  If the room is anonymous,
+        returns False"""
+        # TODO make this fo' real.
+        return False
     def invite(self, room, jid):
+        """Invites a JID to a room, if that JID is not already there."""
+        if self.user_in_room(room, jid):
+            return
         msg = xmpp.protocol.Message(to=jid, frm=self.jid)
         body = xmpp.simplexml.Node(tag='x',
                                    attrs={
@@ -383,14 +448,25 @@ class DiceBot(Bot):
                                    })
         msg.addChild(node=body)
         self.conn.send(msg)
-    def convo(self, msg):
-        other_jid = msg.getFrom()
+    def confirm_user(self, msg):
+        """Creates a new user connection, or destroys a pending one, based on
+        input."""
+        additional = msg.getFrom()
+        additional.setResource('')
+        additional = unicode(additional)
+        session = Session()
         try:
-            state = self.convos[other_jid]
+            pending = session.query(PendingConnection) \
+                    .filter_by(additional_jid=additional).first()
         except KeyError:
-            state = State()
-            self.convos[other_jid] = state
-        return state.process(msg)
+            return "Sorry, something went wrong.  " \
+                   "Please contact kit@transneptune.net"
+        approved = pending.process(msg)
+        session.delete(pending)
+        session.commit()
+        if approved:
+            return "Thank you!"
+        return "Sorry to trouble you."
     def mode(self, msg):
         """Set or view the bot's current game mode.
             * mode
