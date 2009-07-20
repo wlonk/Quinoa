@@ -26,7 +26,6 @@ class JabberOptionParser(OptionParser):
 
 # ~~~~~~~ DATABASE definition
 path = '/home/kit/Desktop/hg-repos/quinoa/'
-#path = ''
 engine = sqlalchemy.create_engine('sqlite:///%styche.db' % path)
 Session = sqlalchemy.orm.sessionmaker(bind=engine)
 
@@ -42,10 +41,7 @@ class User(Base):
         aliases = ' a.k.a. '.join(unicode(a) for a in self.aliases)
         if not aliases:
             aliases = 'No-name'
-        bats = ''
-        if not self.batsignal:
-            bats = 'not '
-        return "%s (%s, %son the batsignal)" % (aliases, self.jid, bats)
+        return "%s (%s)" % (aliases, self.jid)
     __str__ = __unicode__
 
 class JidAlias(Base):
@@ -332,6 +328,7 @@ class DiceBot(Bot):
         join.setBody('join ooc@rooms.transneptune.net')
         self.join(join)
     def register_commands(self):
+        self.commands[r'%s' % '|'.join(SOUND_EFFECTS)] = self.sound_effects
         self.commands[r'[Mm]ode\b'] = self.mode
         self.commands[r'[Rr]oll\b'] = self.roll
         self.commands[r'[Ii]nit\b'] = self.initiative
@@ -461,7 +458,10 @@ class DiceBot(Bot):
         except KeyError:
             return "Sorry, something went wrong.  " \
                    "Please contact kit@transneptune.net"
-        approved = pending.process(msg)
+        try:
+            approved = pending.process(msg)
+        except:
+            return "Are you IMing me from the right account?"
         session.delete(pending)
         session.commit()
         if approved:
@@ -752,6 +752,14 @@ class DiceBot(Bot):
             return "Your mother's lipstick."
         if re.search(MEMES[12], args, re.I):
             return "YA RLY."
+    def sound_effects(self, msg):
+        args = msg.getBody()
+        if re.search(SOUND_EFFECTS[0], args, re.I):
+            return "http://instantrimshot.com"
+        if re.search(SOUND_EFFECTS[1], args, re.I):
+            return "http://sadtrombone.com"
+        if re.search(SOUND_EFFECTS[2], args, re.I):
+            return "http://instantcrickets.com"
 
 MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
         r'(tyche!\s+what is your profession\?)',
@@ -767,6 +775,11 @@ MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
         r'(what do you have on under (that( kilt)?|there)\?)',
         r'(o rly\??)',
         ]
+
+SOUND_EFFECTS = [r'\*rimshot\*',
+                 r'\*(sad )?trombone\*',
+                 r'\*crickets\*'
+                ]
 
 #~~~~~~~~~~~~~~~~~~~~~~ Run the bot.
 
