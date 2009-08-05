@@ -26,6 +26,7 @@ class JabberOptionParser(OptionParser):
 
 # ~~~~~~~ DATABASE definition
 path = '/home/kit/Desktop/hg-repos/quinoa/'
+#path = ''
 engine = sqlalchemy.create_engine('sqlite:///%styche.db' % path)
 Session = sqlalchemy.orm.sessionmaker(bind=engine)
 
@@ -34,14 +35,19 @@ class User(Base):
     __tablename__ = 'users'
     jid = sqlalchemy.Column(sqlalchemy.Unicode, primary_key=True)
     batsignal = sqlalchemy.Column(sqlalchemy.Boolean)
+    points = sqlalchemy.Column(sqlalchemy.Integer, default=0)
     def __init__(self, jid):
         self.jid = jid
         self.batsignal = True
+        self.points = 0
     def __unicode__(self):
         aliases = ' a.k.a. '.join(unicode(a) for a in self.aliases)
         if not aliases:
             aliases = 'No-name'
-        return "%s (%s)" % (aliases, self.jid)
+        s = 's'
+        if self.points == 1 or self.points == -1:
+            s = ''
+        return "%s (%s), %d point%s" % (aliases, self.jid, self.points, s)
     __str__ = __unicode__
 
 class JidAlias(Base):
@@ -337,6 +343,28 @@ class DiceBot(Bot):
         self.commands[r'[Ww]ho is\b'] = self.who_is
         self.commands[r'(?i)batsignal\??$'] = self.batsignal
         self.commands[r'!\b'] = self.confirm_user
+        self.commands[r'[Gg]ive\b'] = self.points
+        self.commands[r'GYRO,? I SUMMON THEE!?$'] = self.summon_gyro
+    def points(self, msg):
+        """Give points to someone on the batsignal.  Usage: give USER X points"""
+        args = msg.getBody()
+        try:
+            cmd, un, number, points = args.split()
+            number = int(number)
+        except:
+            return
+        session = Session()
+        try:
+            user = session.query(Alias).filter(Alias.name.like(un)).one()
+        except sqlalchemy.orm.exc.NoResultFound:
+            return "Who's that?"
+        user = user.user
+        session.add(user)
+        user.points += number
+        session.commit()
+        if user.points > 9000:
+            return "WHAT?  OVER 9000!?"
+        return "OK."
     def remember_me(self, msg):
         """Usage: account [-q] space separated aliases "with quotes for multiword aliases"
 
@@ -432,6 +460,14 @@ class DiceBot(Bot):
         returns False"""
         # TODO make this fo' real.
         return False
+    def summon_gyro(self, msg):
+        """Summons Gyro."""
+        if msg.getType() != 'groupchat':
+            return
+        room = msg.getFrom()
+        room.setResource('')
+        gyro = xmpp.protocol.JID('greeksandwichpirate@gmail.com')
+        self.invite(room, gyro)
     def invite(self, room, jid):
         """Invites a JID to a room, if that JID is not already there."""
         if self.user_in_room(room, jid):
@@ -752,6 +788,12 @@ class DiceBot(Bot):
             return "Your mother's lipstick."
         if re.search(MEMES[12], args, re.I):
             return "YA RLY."
+        if re.search(MEMES[13], args, re.I):
+            return "Just like that?"
+        if re.search(MEMES[14], args, re.I):
+            return "The other half is bullets."
+        if re.search(MEMES[15], args, re.I):
+            return "-ang Clan ain't nuthin' ta fuck wit'!"
     def sound_effects(self, msg):
         args = msg.getBody()
         if re.search(SOUND_EFFECTS[0], args, re.I):
@@ -774,6 +816,9 @@ MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
         r"(i'm not left( |-)handed(!|\.))",
         r'(what do you have on under (that( kilt)?|there)\?)',
         r'(o rly\??)',
+        r'(when i move[,:]? you move)',
+        r'((and )?knowing is half the battle\.?)',
+        r'(w00(t|7))',
         ]
 
 SOUND_EFFECTS = [r'\*rimshot\*',

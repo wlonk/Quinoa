@@ -90,7 +90,7 @@ class Bot(object):
         if delta > 60:
             self.__last = now
             self.conn.send(xmpp.protocol.Presence())
-        if delta > 10:
+        if delta % 10 == 0:
             self.periodic_action()
     def serve(self):
         """
