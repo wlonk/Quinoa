@@ -70,7 +70,7 @@ class Bot(object):
             self.conn.send(xmpp.protocol.Presence(to=who, typ='subscribe'))
     def __connect(self):
         if not self.conn:
-            conn = xmpp.client.Client(self.jid.getDomain(), debug=[])
+            conn = xmpp.client.Client(self.jid.getDomain(), )#debug=[])
             if not conn.connect():
                 self.log('Unable to connect.')
                 return None

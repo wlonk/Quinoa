@@ -129,9 +129,31 @@ def owod(dice, diff, spec=False, will=False):
         succs = max(0, succs - ones)
     return "%s (%s)" % (succs, ', '.join(map(str, ret)))
 
+def nwod(dice, again=10):
+    threshold = 8
+    chance = False
+    if dice < 1:
+        dice = 1
+        threshold = 10
+        again = 10
+        chance = True
+    pool = sorted(rand(1, 10) for x in xrange(dice))
+    if chance and pool[0] == 1:
+        return "Critical failure! (%s)" % ', '.join(str(x) for x in pool)
+    addendum = pool
+    while sum(i >= again for i in addendum):
+        addendum = sorted(rand(1, 10) for x in
+                   range(sum(i >= again for i in addendum)))
+        pool.extend(addendum)
+    successes = sum(i >= threshold for i in pool)
+    if not successes:
+        return "Failure (%s)" % ', '.join(str(x) for x in pool)
+    return "Success %s (%s)" % (successes, ', '.join(str(x) for x in pool))
+
 def exalted(dice):
     pool = sorted(rand(1, 10) for x in xrange(dice))
     succs = sum(x >= 7 for x in pool)
+    succs += pool.count(10)
     ones = pool.count(1)
     if not succs and ones:
         return "Botch (x%s)" % ones
@@ -290,29 +312,23 @@ def hande(heaven, earth, passing_grade=1):
     pool = [rand(1, 10) for i in range(heaven)]
     num_rerolls_used = 0
     if earth < 0:
-        while num_rerolls_used < abs(earth):
-            for i, v in enumerate(pool):
-                if v >= 7:
-                    pool[i] = rand(1, 10)
-                    num_rerolls_used += 1
-                    break
-            if not sum(v >= 7 for v in pool):
+        earth = -earth
+    while num_rerolls_used < earth:
+        for i, v in enumerate(pool):
+            if v < 7:
+                pool[i] = rand(1, 10)
+                num_rerolls_used += 1
                 break
-    else:
-        while num_rerolls_used < earth:
-            for i, v in enumerate(pool):
-                if v < 7:
-                    pool[i] = rand(1, 10)
-                    num_rerolls_used += 1
-                    break
-            if not sum(v < 7 for v in pool):
-                break
+        if not sum(v < 7 for v in pool):
+            break
     hits = sum(x >= 7 for x in pool) + pool.count(10)
-    if hits >= passing_grade:
-        ret = "Success %d (%s)" % \
-                (hits + 1 - passing_grade, ', '.join(str(x) for x in pool))
-    else:
-        ret = "Failure %d (%s)" % \
+    if hits == passing_grade:
+        ret = "Pass (%s)" % (', '.join(str(x) for x in pool))
+    if hits > passing_grade:
+        ret = "Pass +%d (%s)" % \
+                (hits - passing_grade, ', '.join(str(x) for x in pool))
+    if hits < passing_grade:
+        ret = "Fail -%d (%s)" % \
                 (passing_grade - hits, ', '.join(str(x) for x in pool))
     if num_rerolls_used < abs(earth):
         val = abs(earth) - num_rerolls_used
@@ -328,7 +344,7 @@ def generic(num, size):
 class DiceBot(Bot):
     def __init__(self, *args, **kwargs):
         Bot.__init__(self, *args, **kwargs)
-        self.mode = 'h+e'
+        self.mode = 'nwod'
     def on_connect(self):
         join = xmpp.protocol.Message()
         join.setBody('join ooc@rooms.transneptune.net')
@@ -430,6 +446,8 @@ class DiceBot(Bot):
             return
         session = Session()
         ret = []
+        if args.lower() == "john galt":
+            return "Fuck Ayn Rand."
         for v in session.query(User).all():
             if args.lower() == v.jid.lower():
                 ret.append(v)
@@ -513,6 +531,7 @@ class DiceBot(Bot):
                 if <value> in possible modes, sets mode to that value."""
         modes = set([
                 "owod",
+                "nwod",
                 "exalted",
                 "btvs",
                 "allflesh",
@@ -540,6 +559,8 @@ class DiceBot(Bot):
         """There are a number of ways to roll dice.  In all cases, replace # with one or more numerals, and all elements in parentheses are optional:
             * oWoD: roll # at # (s) (w)
                 pool size, difficulty, (specialized?) (willpower spent?)
+            * nWoD: roll # (#)
+                pool size, (roll again threshold?)
             * Exalted: roll #
                 pool size
             * Buffy the Vampire Slayer: roll #
@@ -580,6 +601,21 @@ class DiceBot(Bot):
                 except ValueError, e:
                     return "Bad value: %s" % e
                 return owod(dice, diff, spec, will)
+        if self.mode == "nwod":
+            _nwod = re.compile(r'^(\d+)( \d+)?$')
+            if _nwod.search(args):
+                dice, again = _nwod.search(args).groups()
+                try:
+                    dice = int(dice)
+                except ValueError, e:
+                    return "Bad value: %s" % e
+                try:
+                    again = int(again.strip())
+                except ValueError, e:
+                    again = 10
+                except AttributeError, e:
+                    again = 10
+                return nwod(dice, again)
         if self.mode == "exalted":
             _exalted = re.compile(r'^(\d+)$')
             if _exalted.search(args):
