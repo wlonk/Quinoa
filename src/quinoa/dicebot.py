@@ -360,7 +360,6 @@ class DiceBot(Bot):
         self.commands[r'(?i)batsignal\??$'] = self.batsignal
         self.commands[r'!\b'] = self.confirm_user
         self.commands[r'[Gg]ive\b'] = self.points
-        self.commands[r'GYRO,? I SUMMON THEE!?$'] = self.summon_gyro
     def points(self, msg):
         """Give points to someone on the batsignal.  Usage: give USER X points"""
         args = msg.getBody()
@@ -478,14 +477,6 @@ class DiceBot(Bot):
         returns False"""
         # TODO make this fo' real.
         return False
-    def summon_gyro(self, msg):
-        """Summons Gyro."""
-        if msg.getType() != 'groupchat':
-            return
-        room = msg.getFrom()
-        room.setResource('')
-        gyro = xmpp.protocol.JID('greeksandwichpirate@gmail.com')
-        self.invite(room, gyro)
     def invite(self, room, jid):
         """Invites a JID to a room, if that JID is not already there."""
         if self.user_in_room(room, jid):
@@ -495,7 +486,6 @@ class DiceBot(Bot):
                                    attrs={
                                     'xmlns': 'jabber:x:conference',
                                     'jid': room,
-                                    'reason': 'I SUMMON THEE!'
                                    })
         msg.addChild(node=body)
         self.conn.send(msg)
