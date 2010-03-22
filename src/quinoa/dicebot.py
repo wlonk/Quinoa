@@ -553,8 +553,8 @@ class DiceBot(Bot):
         """There are a number of ways to roll dice.  In all cases, replace # with one or more numerals, and all elements in parentheses are optional:
             * oWoD: roll # at # (s) (w)
                 pool size, difficulty, (specialized?) (willpower spent?)
-            * nWoD: roll # (#)
-                pool size, (roll again threshold?)
+            * nWoD: roll # (#) (r)
+                pool size, (roll again threshold?), (rote?)
             * Exalted: roll #
                 pool size
             * Buffy the Vampire Slayer: roll #
