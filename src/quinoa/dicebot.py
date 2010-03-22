@@ -129,7 +129,7 @@ def owod(dice, diff, spec=False, will=False):
         succs = max(0, succs - ones)
     return "%s (%s)" % (succs, ', '.join(map(str, ret)))
 
-def nwod(dice, again=10):
+def nwod(dice, again=10, rote=False):
     threshold = 8
     chance = False
     if dice < 1:
@@ -140,6 +140,10 @@ def nwod(dice, again=10):
     pool = sorted(rand(1, 10) for x in xrange(dice))
     if chance and pool[0] == 1:
         return "Critical failure! (%s)" % ', '.join(str(x) for x in pool)
+    if rote:
+        for i, val in enumerate(pool):
+            if val < threshold:
+                pool[i] = rand(1, 10)
     addendum = pool
     while sum(i >= again for i in addendum):
         addendum = sorted(rand(1, 10) for x in
