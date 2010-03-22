@@ -596,9 +596,9 @@ class DiceBot(Bot):
                     return "Bad value: %s" % e
                 return owod(dice, diff, spec, will)
         if self.mode == "nwod":
-            _nwod = re.compile(r'^(\d+)( \d+)?$')
+            _nwod = re.compile(r'^(\d+)( \d+)?( r)?$')
             if _nwod.search(args):
-                dice, again = _nwod.search(args).groups()
+                dice, again, rote = _nwod.search(args).groups()
                 try:
                     dice = int(dice)
                 except ValueError, e:
@@ -609,7 +609,7 @@ class DiceBot(Bot):
                     again = 10
                 except AttributeError, e:
                     again = 10
-                return nwod(dice, again)
+                return nwod(dice, again, rote)
         if self.mode == "exalted":
             _exalted = re.compile(r'^(\d+)$')
             if _exalted.search(args):
