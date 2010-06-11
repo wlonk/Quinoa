@@ -728,7 +728,7 @@ class DiceBot(Bot):
             return generic(num, size)
         if _rick.search(args):
             time.sleep(rand(1, 3))
-            return "http://tinyurl.com/2msmwl"
+            return "http://is.gd/czLKl"
     def initiative(self, msg):
         """Roll initiative.
         * oWoD: init (name:value)*
