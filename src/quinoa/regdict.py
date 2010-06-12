@@ -1,3 +1,6 @@
+"""
+This class is such a bad idea.
+"""
 
 import re
 
