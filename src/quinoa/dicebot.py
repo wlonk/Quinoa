@@ -4,8 +4,7 @@
 import re
 import shlex
 import time
-import xmpp
-import xmpp.simplexml
+import xmppony as xmpp
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm.exc
 import sqlalchemy.orm
