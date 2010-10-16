@@ -224,6 +224,25 @@ def qin():
         kind = 'balanced'
     return "%s (%s)" % (ret, kind)
 
+def l5r(pool, adds, target, unskilled=False, emphasized=False):
+    rolls = []
+    for die in range(pool):
+        val = rand(1, 10)
+        if emphasized:
+            while val == 1:
+                val = rand(1, 10)
+        amt = val
+        if not unskilled:
+            while val == 10:
+                val = rand(1, 10)
+                amt += val
+        rolls.append(amt)
+    rolls.sort()
+    res = sum(rolls[-adds:]) - target
+    if res < 0:
+        return "Failure."
+    return "Success (%s)" % res
+
 def ork(dice):
     res = defaultdict(int)
     for i in xrange(dice):
