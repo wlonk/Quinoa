@@ -549,6 +549,7 @@ class DiceBot(Bot):
                 "allflesh",
                 "qin",
                 "orkworld",
+                "l5r",
                 "wushu",
                 "alternity",
                 "innomine",
@@ -580,6 +581,8 @@ class DiceBot(Bot):
             * All Flesh Must Be Eaten: roll #
                 skill
             * Qin: roll
+            * Legend of the 5 Rings: #k# # (u) (e)
+                pool, adds, target number, unskilled, emphasized
             * Orkworld: roll #
                 pool size
             * Wushu: roll # over #
@@ -659,6 +662,18 @@ class DiceBot(Bot):
             _qin = re.compile(r'^$')
             if _qin.search(args):
                 return qin()
+        if self.mode == "l5r":
+            _l5r = re.compile(r'^(\d+)k(\d+) (\d+)( u)?( e)?$')
+            if _l5r.search(args):
+                pool, adds, target, unskilled, emphasized = \
+                                                _l5r.search(args).groups()
+                try:
+                    pool = int(pool)
+                    adds = int(adds)
+                    target = int(target)
+                except ValueError, e:
+                    return "Bad value: %s" % e
+                return l5r(pool, adds, target, unskilled, emphasized)
         if self.mode == "ork":
             _ork = re.compile(r'^(\d+)$')
             if _ork.search(args):
