@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='quinoa',
-    version='0.3.1',
+    version='0.4.3',
     author='Kit La Touche',
-    author_email='kit.la.t@gmail.com',
+    author_email='kit@transneptune.net',
     description="This is a base class for making Jabber bots that are aware" \
                 " of MUC/groupchat.",
     long_description="""\
@@ -13,7 +13,7 @@ This is a simple package for making MUC/groupchat-aware Jabber bots.  It provide
     license="GPL",
     keywords=["jabber", "xmpp", "groupchat", "muc", "bot"],
     url="http://hg.transneptune.net/quinoa",
-    install_requires=['xmpppy >= 0.4'],
+    install_requires=['xmppony >= 0.1'],
     package_dir={
         '': 'src'
         },

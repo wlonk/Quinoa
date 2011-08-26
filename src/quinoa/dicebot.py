@@ -243,6 +243,15 @@ def l5r(pool, adds, target, unskilled=False, emphasized=False):
         return "Failure."
     return "Success (%s)" % res
 
+def fudge(num):
+    res = sum(rand(-1, 1) for i in xrange(num))
+    if res < 0:
+        return "%s" % res
+    if res == 0:
+        return "0"
+    if res > 0:
+        return "+%s" % res
+
 def ork(dice):
     res = defaultdict(int)
     for i in xrange(dice):
@@ -598,13 +607,13 @@ class DiceBot(Bot):
             * Heaven and Earth: roll # (-)# (#)
                 heaven, earth, passing grade
             * Generic Dice: roll #d#
-                number, size"""
+                number, size (size may be F for Fudge dice)"""
         args = msg.getBody()
         try:
             command, args = args.split(None, 1)
         except:
             pass
-        _generic = re.compile(r'(\d*)d(\d+)')
+        _generic = re.compile(r'(\d*)d(\d+|F|f)')
         _rick = re.compile(r'rick')
         if self.mode == "owod":
             _owod = re.compile(r'^(\d+) at (\d+)( s)?( w)?$')
@@ -750,15 +759,24 @@ class DiceBot(Bot):
                     return "Bad value: %s" % e
                 return hande(heaven, earth, passing_grade)
         if _generic.search(args):
-            num, size = _generic.search(args).groups()
-            if num == '':
-                num = 1
-            try:
-                num = int(num)
-                size = int(size)
-            except ValueError, e:
-                return "Bad size: %s" % e
-            return generic(num, size)
+            ret = []
+            for pair in _generic.findall(args):
+                num, size = pair
+                if num == '':
+                    num = 1
+                if size == 'F' or size == 'f':
+                    try:
+                        num = int(num)
+                    except ValueError, e:
+                        return "Bad number: %s" % e
+                    ret.append(fudge(num))
+                try:
+                    num = int(num)
+                    size = int(size)
+                except ValueError, e:
+                    return "Bad size: %s" % e
+                ret.append(generic(num, size))
+            return '; '.join(ret)
         if _rick.search(args):
             time.sleep(rand(1, 3))
             return "http://is.gd/czLKl"
@@ -857,6 +875,8 @@ class DiceBot(Bot):
             return "The other half is bullets."
         if re.search(MEMES[15], args, re.I):
             return "-ang Clan ain't nuthin' ta fuck wit'!"
+        if re.search(MEMES[16], args, re.I):
+            return "Everyone? http://tinyurl.com/3cmbtw"
     def sound_effects(self, msg):
         args = msg.getBody()
         if re.search(SOUND_EFFECTS[0], args, re.I):
@@ -882,6 +902,7 @@ MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
         r'(when i move[,:]? you move)',
         r'((and )?knowing is half the battle\.?)',
         r'(w00(t|7))',
+        r'(.*everyone.)',
         ]
 
 SOUND_EFFECTS = [r'\*rimshot\*',
