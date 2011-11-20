@@ -1,0 +1,4 @@
+*.pyc
+build/
+dist/
+src/quinoa.egg-info/
