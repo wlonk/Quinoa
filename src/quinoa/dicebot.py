@@ -429,7 +429,7 @@ class DiceBot(Bot):
             return "How many?"
         if len(self.deck) < number:
             return "Not enough cards; only %i left." % len(self.deck)
-        frm = msg.getFrom()
+        frm = str(msg.getFrom())
         if frm not in self.players:
             self.players[frm] = []
         player = self.players[frm]
@@ -447,7 +447,7 @@ class DiceBot(Bot):
         if not self.deck:
             return
         if msg.getBody().lower() == "reveal my hand":
-            frm = msg.getFrom()
+            frm = str(msg.getFrom())
             if frm in self.players:
                 hand = ', '.join("%s of %s" % x for x in self.players[frm])
                 return "%s has %s" % (str(frm), hand)
@@ -458,7 +458,7 @@ class DiceBot(Bot):
         """
         if not self.deck:
             return
-        frm = msg.getFrom()
+        frm = str(msg.getFrom())
         out_msg = xmpp.protocol.Message(to=frm, typ='chat')
         out_msg.setBody(", ".join("%s of %s" % x for x in self.players[frm]))
         self.conn.send(out_msg)
@@ -469,7 +469,7 @@ class DiceBot(Bot):
         """
         if not self.deck:
             return
-        frm = msg.getFrom()
+        frm = str(msg.getFrom())
         if frm in self.players:
             try:
                 cmd, all = msg.getBody().split()
