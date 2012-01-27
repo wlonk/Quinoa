@@ -407,12 +407,12 @@ class DiceBot(Bot):
         """Usage:
             shuffle
         """
-        self.cards_finish()
+        self.cards_finish(msg) # sloppy, but it needs a msg
         self.deck = []
         self.players = {}
         for suit in ('Hearts', 'Spades', 'Diamonds', 'Clubs'):
             for value in ['Ace'] + map(str, range(2, 11)) + ['Jack', 'Queen', 'King']:
-                deck.append((value, suit))
+                self.deck.append((value, suit))
         shuffle(self.deck)
         return "%i-card deck ready." % len(self.deck)
     def cards_deal(self, msg):
@@ -446,7 +446,7 @@ class DiceBot(Bot):
         """
         if not self.deck:
             return
-        if msg.getBody().lower() is "reveal my hand":
+        if msg.getBody().lower() == "reveal my hand":
             frm = msg.getFrom()
             if frm in self.players:
                 hand = ', '.join("%s of %s" % x for x in self.players[frm])
@@ -465,18 +465,27 @@ class DiceBot(Bot):
         return "OK."
     def cards_discard(self, msg):
         """Usage:
-            discard <value of suit>
+            discard <value of suit>|all
         """
         if not self.deck:
             return
         frm = msg.getFrom()
         if frm in self.players:
             try:
+                cmd, all = msg.getBody().split()
+                if all.lower() == 'all':
+                    ret = ', '.join("%s of %s" % x for x in self.players[frm])
+                    ret += " discarded."
+                    self.players[frm] = []
+                    return ret
+            except:
+                pass
+            try:
                 cmd, value, of, suit = msg.getBody().split()
             except:
                 return
             try:
-                self.players[frm].remove((value.title(), suit.title())
+                self.players[frm].remove((value.title(), suit.title()))
             except ValueError:
                 return "You never had that card to begin with."
             return "Done. You've got %i cards left." % len(self.players[frm])
