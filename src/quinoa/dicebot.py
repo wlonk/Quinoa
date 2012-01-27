@@ -12,6 +12,7 @@ import sqlalchemy
 from optparse import OptionParser
 from collections import defaultdict
 from random import randint as rand
+from random import shuffle
 from math import ceil as ceiling
 from quinoa import Bot
 
@@ -376,21 +377,116 @@ class DiceBot(Bot):
     def __init__(self, *args, **kwargs):
         Bot.__init__(self, *args, **kwargs)
         self.mode = 'nwod'
+        self.deck = None
+        self.players = None
     def on_connect(self):
         join = xmpp.protocol.Message()
         join.setBody('join ooc@rooms.transneptune.net')
         self.join(join)
     def register_commands(self):
-        self.commands[r'%s' % '|'.join(SOUND_EFFECTS)] = self.sound_effects
+        #self.commands[r'%s' % '|'.join(SOUND_EFFECTS)] = self.sound_effects
+        #self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
+        # Dice tasks
         self.commands[r'[Mm]ode\b'] = self.mode
         self.commands[r'[Rr]oll\b'] = self.roll
         self.commands[r'[Ii]nit\b'] = self.initiative
-        self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
+        # User management tasks
         self.commands[r'[Aa]ccount\b'] = self.remember_me
         self.commands[r'[Ww]ho is\b'] = self.who_is
         self.commands[r'(?i)batsignal\??$'] = self.batsignal
         self.commands[r'!\b'] = self.confirm_user
         self.commands[r'[Gg]ive\b'] = self.points
+        # Deck of cards tasks
+        self.commands[r'[Ss]huffle\b'] = self.cards_shuffle
+        self.commands[r'[Dd]eal\b'] = self.cards_deal
+        self.commands[r'[Rr]eveal\b'] = self.cards_show
+        self.commands[r'[Pp]eek\b'] = self.cards_peek
+        self.commands[r'[Dd]iscard\b'] = self.cards_discard
+        self.commands[r'[Ff]inish\b'] = self.cards_finish
+    def cards_shuffle(self, msg):
+        """Usage:
+            shuffle
+        """
+        self.cards_finish()
+        self.deck = []
+        self.players = {}
+        for suit in ('Hearts', 'Spades', 'Diamonds', 'Clubs'):
+            for value in ['Ace'] + map(str, range(2, 11)) + ['Jack', 'Queen', 'King']:
+                deck.append((value, suit))
+        shuffle(self.deck)
+        return "%i-card deck ready." % len(self.deck)
+    def cards_deal(self, msg):
+        """Usage:
+            deal me <number of cards>
+        """
+        if not self.deck:
+            return
+        args = msg.getBody()
+        try:
+            cmd, me, number = args.split()
+            number = int(number)
+        except:
+            return "How many?"
+        if len(self.deck) < number:
+            return "Not enough cards; only %i left." % len(self.deck)
+        frm = msg.getFrom()
+        if frm not in self.players:
+            self.players[frm] = []
+        player = self.players[frm]
+        for i in range(number):
+            player.append(self.deck.pop())
+        ret = "%i cards dealt; %i left. Hand sizes are: " % (number,
+                                                             len(self.deck))
+        ret += ', '.join(["%s with %i" % (str(jid), len(hand)) for jid, hand in
+                                                    self.players.iteritems()])
+        return ret
+    def cards_show(self, msg):
+        """Usage:
+            reveal my hand
+        """
+        if not self.deck:
+            return
+        if msg.getBody().lower() is "reveal my hand":
+            frm = msg.getFrom()
+            if frm in self.players:
+                hand = ', '.join("%s of %s" % x for x in self.players[frm])
+                return "%s has %s" % (str(frm), hand)
+        return
+    def cards_peek(self, msg):
+        """Usage:
+            peek
+        """
+        if not self.deck:
+            return
+        frm = msg.getFrom()
+        out_msg = xmpp.protocol.Message(to=frm, typ='chat')
+        out_msg.setBody(", ".join("%s of %s" % x for x in self.players[frm]))
+        self.conn.send(out_msg)
+        return "OK."
+    def cards_discard(self, msg):
+        """Usage:
+            discard <value of suit>
+        """
+        if not self.deck:
+            return
+        frm = msg.getFrom()
+        if frm in self.players:
+            try:
+                cmd, value, of, suit = msg.getBody().split()
+            except:
+                return
+            try:
+                self.players[frm].remove((value.title(), suit.title())
+            except ValueError:
+                return "You never had that card to begin with."
+            return "Done. You've got %i cards left." % len(self.players[frm])
+    def cards_finish(self, msg):
+        """Usage:
+            finish
+        """
+        self.players = None
+        self.deck = None
+        return "Deck and hands destroyed."
     def points(self, msg):
         """Give points to someone on the batsignal.  Usage: give USER X points"""
         args = msg.getBody()
@@ -831,84 +927,84 @@ class DiceBot(Bot):
                         reversed(sorted(actors.items(), \
                         key=lambda (k, v): (v, k), cmp=shadowrun_sort)))
         return
-    def meme(self, msg):
-        args = msg.getBody()
-        if rand(1, 30) == 1:
-            return "Your mom!"
-        if re.search(MEMES[0], args, re.I):
-            return "Aaooh! Aaooh! Aaooh!"
-        if re.search(MEMES[1], args, re.I):
-            return "Fuck all y'all."
-        if re.search(MEMES[2], args, re.I):
-            return "Stop saying that!"
-        if re.search(MEMES[3], args, re.I):
-            return "No, it's Doom III."
-        if re.search(MEMES[4], args, re.I):
-            return "I CAN TELEPORT."
-        if re.search(MEMES[5], args, re.I):
-            if rand(1, 2) == 1:
-                return "ZZ"
-            return "RR"
-        if re.search(MEMES[6], args, re.I):
-            return "You did a barrel roll!"
-        if re.search(MEMES[7], args, re.I):
-            return "Hahaha… gravity."
-        if re.search(MEMES[8], args):
-            if rand(1, 10) == 1:
-                return "What are you dense? Are you retarded or something?" \
-                        " I'm the god damned Batman!"
-            return
-        if re.search(MEMES[9], args):
-            if rand(1, 3) == 1:
-                return "What are you dense? Are you retarded or something?" \
-                        " I'm the god damned Barman!  I get you beer."
-            return
-        if re.search(MEMES[10], args, re.I):
-            return "I'm not left-handed either."
-        if re.search(MEMES[11], args, re.I):
-            return "Your mother's lipstick."
-        if re.search(MEMES[12], args, re.I):
-            return "YA RLY."
-        if re.search(MEMES[13], args, re.I):
-            return "Just like that?"
-        if re.search(MEMES[14], args, re.I):
-            return "The other half is bullets."
-        if re.search(MEMES[15], args, re.I):
-            return "-ang Clan ain't nuthin' ta fuck wit'!"
-        if re.search(MEMES[16], args, re.I):
-            return "Everyone? http://tinyurl.com/3cmbtw"
-    def sound_effects(self, msg):
-        args = msg.getBody()
-        if re.search(SOUND_EFFECTS[0], args, re.I):
-            return "http://instantrimshot.com"
-        if re.search(SOUND_EFFECTS[1], args, re.I):
-            return "http://sadtrombone.com"
-        if re.search(SOUND_EFFECTS[2], args, re.I):
-            return "http://instantcrickets.com"
-
-MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
-        r'(tyche!\s+what is your profession\?)',
-        r'((hello(,|\.)\s+)?my name is inigo montoya(,|\.)\s+you killed my father(,|\.)\s+prepare to die(\.|!)?)',
-        r'(is this battletoads\?)',
-        r"(((what is)|(what's)) celerity (7|seven)\?)",
-        r'(do a barrel roll!?)',
-        r'(zz$|rr$)',
-        r'(i laugh at gravity all the time)',
-        r'(.*\bBATMAN\b.*)',
-        r'(.*\bBARMAN\b.*)',
-        r"(i'm not left( |-)handed(!|\.))",
-        r'(what do you have on under (that( kilt)?|there)\?)',
-        r'(o rly\??)',
-        r'(when i move[,:]? you move)',
-        r'((and )?knowing is half the battle\.?)',
-        r'(w00(t|7))',
-        r'(.*everyone.)',
-        ]
-
-SOUND_EFFECTS = [r'\*rimshot\*',
-                 r'\*(sad )?trombone\*',
-                 r'\*crickets\*'
-                ]
+#    def meme(self, msg):
+#        args = msg.getBody()
+#        if rand(1, 30) == 1:
+#            return "Your mom!"
+#        if re.search(MEMES[0], args, re.I):
+#            return "Aaooh! Aaooh! Aaooh!"
+#        if re.search(MEMES[1], args, re.I):
+#            return "Fuck all y'all."
+#        if re.search(MEMES[2], args, re.I):
+#            return "Stop saying that!"
+#        if re.search(MEMES[3], args, re.I):
+#            return "No, it's Doom III."
+#        if re.search(MEMES[4], args, re.I):
+#            return "I CAN TELEPORT."
+#        if re.search(MEMES[5], args, re.I):
+#            if rand(1, 2) == 1:
+#                return "ZZ"
+#            return "RR"
+#        if re.search(MEMES[6], args, re.I):
+#            return "You did a barrel roll!"
+#        if re.search(MEMES[7], args, re.I):
+#            return "Hahaha… gravity."
+#        if re.search(MEMES[8], args):
+#            if rand(1, 10) == 1:
+#                return "What are you dense? Are you retarded or something?" \
+#                        " I'm the god damned Batman!"
+#            return
+#        if re.search(MEMES[9], args):
+#            if rand(1, 3) == 1:
+#                return "What are you dense? Are you retarded or something?" \
+#                        " I'm the god damned Barman!  I get you beer."
+#            return
+#        if re.search(MEMES[10], args, re.I):
+#            return "I'm not left-handed either."
+#        if re.search(MEMES[11], args, re.I):
+#            return "Your mother's lipstick."
+#        if re.search(MEMES[12], args, re.I):
+#            return "YA RLY."
+#        if re.search(MEMES[13], args, re.I):
+#            return "Just like that?"
+#        if re.search(MEMES[14], args, re.I):
+#            return "The other half is bullets."
+#        if re.search(MEMES[15], args, re.I):
+#            return "-ang Clan ain't nuthin' ta fuck wit'!"
+#        if re.search(MEMES[16], args, re.I):
+#            return "Everyone? http://tinyurl.com/3cmbtw"
+#    def sound_effects(self, msg):
+#        args = msg.getBody()
+#        if re.search(SOUND_EFFECTS[0], args, re.I):
+#            return "http://instantrimshot.com"
+#        if re.search(SOUND_EFFECTS[1], args, re.I):
+#            return "http://sadtrombone.com"
+#        if re.search(SOUND_EFFECTS[2], args, re.I):
+#            return "http://instantcrickets.com"
+#
+#MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
+#        r'(tyche!\s+what is your profession\?)',
+#        r'((hello(,|\.)\s+)?my name is inigo montoya(,|\.)\s+you killed my father(,|\.)\s+prepare to die(\.|!)?)',
+#        r'(is this battletoads\?)',
+#        r"(((what is)|(what's)) celerity (7|seven)\?)",
+#        r'(do a barrel roll!?)',
+#        r'(zz$|rr$)',
+#        r'(i laugh at gravity all the time)',
+#        r'(.*\bBATMAN\b.*)',
+#        r'(.*\bBARMAN\b.*)',
+#        r"(i'm not left( |-)handed(!|\.))",
+#        r'(what do you have on under (that( kilt)?|there)\?)',
+#        r'(o rly\??)',
+#        r'(when i move[,:]? you move)',
+#        r'((and )?knowing is half the battle\.?)',
+#        r'(w00(t|7))',
+#        r'(.*everyone.)',
+#        ]
+#
+#SOUND_EFFECTS = [r'\*rimshot\*',
+#                 r'\*(sad )?trombone\*',
+#                 r'\*crickets\*'
+#                ]
 
 #~~~~~~~~~~~~~~~~~~~~~~ Run the bot.
 

@@ -8,6 +8,8 @@ import os
 import sys
 import xmppony as xmpp
 import time
+# NOTE: RegDict is a dangerous evil thing. It is probably not a good thing to
+# use.
 from regdict import RegDict
 
 class Bot(object):
