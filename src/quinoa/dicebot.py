@@ -460,7 +460,8 @@ class DiceBot(Bot):
             return
         frm = str(msg.getFrom())
         out_msg = xmpp.protocol.Message(to=frm, typ='chat')
-        out_msg.setBody(", ".join("%s of %s" % x for x in self.players[frm]))
+        out_msg.setBody(", ".join("%s of %s" % x for x in self.players[frm])
+                        or "No cards.")
         self.conn.send(out_msg)
         return "OK."
     def cards_discard(self, msg):
