@@ -493,6 +493,8 @@ class DiceBot(Bot):
         """Usage:
             finish
         """
+        if not self.players and not self.deck:
+            return
         self.players = None
         self.deck = None
         return "Deck and hands destroyed."
@@ -936,86 +938,6 @@ class DiceBot(Bot):
                         reversed(sorted(actors.items(), \
                         key=lambda (k, v): (v, k), cmp=shadowrun_sort)))
         return
-#    def meme(self, msg):
-#        args = msg.getBody()
-#        if rand(1, 30) == 1:
-#            return "Your mom!"
-#        if re.search(MEMES[0], args, re.I):
-#            return "Aaooh! Aaooh! Aaooh!"
-#        if re.search(MEMES[1], args, re.I):
-#            return "Fuck all y'all."
-#        if re.search(MEMES[2], args, re.I):
-#            return "Stop saying that!"
-#        if re.search(MEMES[3], args, re.I):
-#            return "No, it's Doom III."
-#        if re.search(MEMES[4], args, re.I):
-#            return "I CAN TELEPORT."
-#        if re.search(MEMES[5], args, re.I):
-#            if rand(1, 2) == 1:
-#                return "ZZ"
-#            return "RR"
-#        if re.search(MEMES[6], args, re.I):
-#            return "You did a barrel roll!"
-#        if re.search(MEMES[7], args, re.I):
-#            return "Hahaha… gravity."
-#        if re.search(MEMES[8], args):
-#            if rand(1, 10) == 1:
-#                return "What are you dense? Are you retarded or something?" \
-#                        " I'm the god damned Batman!"
-#            return
-#        if re.search(MEMES[9], args):
-#            if rand(1, 3) == 1:
-#                return "What are you dense? Are you retarded or something?" \
-#                        " I'm the god damned Barman!  I get you beer."
-#            return
-#        if re.search(MEMES[10], args, re.I):
-#            return "I'm not left-handed either."
-#        if re.search(MEMES[11], args, re.I):
-#            return "Your mother's lipstick."
-#        if re.search(MEMES[12], args, re.I):
-#            return "YA RLY."
-#        if re.search(MEMES[13], args, re.I):
-#            return "Just like that?"
-#        if re.search(MEMES[14], args, re.I):
-#            return "The other half is bullets."
-#        if re.search(MEMES[15], args, re.I):
-#            return "-ang Clan ain't nuthin' ta fuck wit'!"
-#        if re.search(MEMES[16], args, re.I):
-#            return "Everyone? http://tinyurl.com/3cmbtw"
-#    def sound_effects(self, msg):
-#        args = msg.getBody()
-#        if re.search(SOUND_EFFECTS[0], args, re.I):
-#            return "http://instantrimshot.com"
-#        if re.search(SOUND_EFFECTS[1], args, re.I):
-#            return "http://sadtrombone.com"
-#        if re.search(SOUND_EFFECTS[2], args, re.I):
-#            return "http://instantcrickets.com"
-#
-#MEMES = [r'(spartans(!|,)\s+what is your profession\?)',
-#        r'(tyche!\s+what is your profession\?)',
-#        r'((hello(,|\.)\s+)?my name is inigo montoya(,|\.)\s+you killed my father(,|\.)\s+prepare to die(\.|!)?)',
-#        r'(is this battletoads\?)',
-#        r"(((what is)|(what's)) celerity (7|seven)\?)",
-#        r'(do a barrel roll!?)',
-#        r'(zz$|rr$)',
-#        r'(i laugh at gravity all the time)',
-#        r'(.*\bBATMAN\b.*)',
-#        r'(.*\bBARMAN\b.*)',
-#        r"(i'm not left( |-)handed(!|\.))",
-#        r'(what do you have on under (that( kilt)?|there)\?)',
-#        r'(o rly\??)',
-#        r'(when i move[,:]? you move)',
-#        r'((and )?knowing is half the battle\.?)',
-#        r'(w00(t|7))',
-#        r'(.*everyone.)',
-#        ]
-#
-#SOUND_EFFECTS = [r'\*rimshot\*',
-#                 r'\*(sad )?trombone\*',
-#                 r'\*crickets\*'
-#                ]
-
-#~~~~~~~~~~~~~~~~~~~~~~ Run the bot.
 
 if __name__ == "__main__":
     b = DiceBot('test@transneptune.net', 'Tyche', '^^password^^')
