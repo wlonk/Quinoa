@@ -2,3 +2,5 @@
 build/
 dist/
 src/quinoa.egg-info/
+deploy.sh
+production-dicebot.py
