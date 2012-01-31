@@ -13,7 +13,10 @@ This is a simple package for making MUC/groupchat-aware Jabber bots.  It provide
     license="GPL",
     keywords=["jabber", "xmpp", "groupchat", "muc", "bot"],
     url="https://github.com/kobutsu/Quinoa",
-    install_requires=['xmppony >= 0.1'],
+    install_requires=[
+            'xmppony >= 0.1',
+            'blinker'
+            ],
     package_dir={
         '': 'src'
         },

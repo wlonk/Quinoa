@@ -8,9 +8,66 @@ import os
 import sys
 import xmppony as xmpp
 import time
-# NOTE: RegDict is a dangerous evil thing. It is probably not a good thing to
-# use.
-from regdict import RegDict
+from blinker import signal, Signal
+
+class FailedToConnectError(Exception):
+    pass
+
+class Conversation(object):
+    """
+    A basic conversation object.
+
+    This keeps a queue of unprocessed incoming messages, and a queue of
+    outgoing responses. It also keeps an id, just in case.
+
+    The messages should be xmppony.protocol.Message objects. Consider using
+    xmppony.protocol.Message.buildReply to make an object.
+    """
+    def __init__(self, id):
+        self.id = id
+        self.outgoing = signal(id + 'outgoing')
+
+class PresenceConversation(Conversation):
+    def __init__(self, *args, **kwargs):
+        Conversation.__init__(self, *args, **kwargs)
+        signal(self.id).connect(self.check_type)
+    def check_type(self, msg):
+        if msg.getType() == 'subscribe':
+            self.outgoing.send(xmpp.protocol.Presence(to=msg.getFrom(),
+                                                        typ='subscribed'))
+            self.outgoing.send(xmpp.protocol.Presence(to=msg.getFrom(),
+                                                        typ='subscribe'))
+        return
+
+class OneToOneConversation(Conversation):
+    def __init__(self, *args, **kwargs):
+        Conversation.__init__(self, *args, **kwargs)
+        signal(self.id).connect(self.reply)
+    def reply(self, msg):
+        text = msg.getBody()
+        if text and text.startswith('echo'):
+            reply = []
+            for i in range(0, len(text), 5):
+                reply.append(text[i:])
+            reply = '... '.join(reply)
+            self.outgoing.send(msg.buildReply(reply))
+        return
+
+class MucConversation(Conversation):
+    def __init__(self, *args, **kwargs):
+        Conversation.__init__(self, *args, **kwargs)
+        signal(self.id).connect(self.reply)
+    def reply(self, msg):
+        text = msg.getBody()
+        if text and text.startswith('echo'):
+            reply = []
+            for i in range(0, len(text), 5):
+                reply.append(text[i:])
+            reply = '... '.join(reply)
+            out_msg = msg.buildReply(reply)
+            out_msg.getTo().setResource('')
+            self.outgoing.send(out_msg)
+        return
 
 class Bot(object):
     """
@@ -32,25 +89,14 @@ class Bot(object):
         self.rooms = {}
         self.conn = None
         self._finished = False
-        self.commands = RegDict() # dict of str -> self.method
-        self.commands[r'[Jj]oin\b'] = self.join
-        self.commands[r'[Ll]eave\b'] = self.leave
-        self.commands[r'[Hh]elp\b'] = self.help
-        self.register_commands()
+        self.conversations = {}
+        self.presence_conversations = {}
     def log(self, text):
         """
         Send a message to the specified logging service, or stdout
         otherwise.
         """
         self.__log.write("%s: %s" % (self.__class__.__name__, text))
-    def register_commands(self):
-        """
-        Implement this method to associate regex-string commands with
-        methods on the bot object.
-
-        This method MUST be implemented.
-        """
-        raise NotImplementedError
     def on_connect(self):
         """
         Implement this method to define actions to perform right after
@@ -64,12 +110,46 @@ class Bot(object):
         fashion.
         """
         pass
+    def __idle_process(self):
+        time.sleep(1)
+        now = int(time.strftime('%s', time.localtime()))
+        delta = now - self.__last
+        if delta > 60:
+            self.__last = now
+            self.conn.send(xmpp.protocol.Presence())
+        if delta % 10 == 0:
+            self.periodic_action()
+    def __callback_message(self, conn, msg):
+        for node in msg.getChildren():
+            # To handle invites to MUC and groupchat
+            if node.getAttr('xmlns') == "http://jabber.org/protocol/muc#user" \
+                    or node.getNamespace() == 'jabber:x:conference':
+                signal('muc-message-received').send(msg)
+                roomname = msg.getFrom().getNode()
+                servicename = msg.getFrom().getDomain()
+                self_msg = xmpp.protocol.Message()
+                self_msg.setBody("join %s@%s" % (roomname, servicename))
+                return self.join(self_msg)
+        if msg.getType() == 'groupchat':
+            frm = str(msg.getFrom())
+            if frm not in self.conversations:
+                self.conversations[frm] = MucConversation(frm)
+                self.conversations[frm].outgoing.connect(self.send)
+            signal(frm).send(msg)
+        else:
+            frm = str(msg.getFrom())
+            if frm not in self.conversations:
+                self.conversations[frm] = OneToOneConversation(frm)
+                self.conversations[frm].outgoing.connect(self.send)
+            signal(frm).send(msg)
     def __callback_presence(self, conn, msg):
-        presence_type = msg.getType()
-        if presence_type == 'subscribe':
-            who = msg.getFrom()
-            self.conn.send(xmpp.protocol.Presence(to=who, typ='subscribed'))
-            self.conn.send(xmpp.protocol.Presence(to=who, typ='subscribe'))
+        frm = str(msg.getFrom())
+        if frm not in self.presence_conversations:
+            # TODO this is leaking memory, of course. When does it make sense
+            # to gc conversations?
+            self.presence_conversations[frm] = PresenceConversation(frm)
+            self.presence_conversations[frm].outgoing.connect(self.send)
+        signal('presence-received').send(msg)
     def __connect(self):
         if not self.conn:
             conn = xmpp.client.Client(self.jid.getDomain(), debug=[])
@@ -85,15 +165,6 @@ class Bot(object):
             self.conn = conn
             self.on_connect()
         return self.conn
-    def __idle_process(self):
-        time.sleep(1)
-        now = int(time.strftime('%s', time.localtime()))
-        delta = now - self.__last
-        if delta > 60:
-            self.__last = now
-            self.conn.send(xmpp.protocol.Presence())
-        if delta % 10 == 0:
-            self.periodic_action()
     def serve(self):
         """
         Call this method to connect and begin serving until self._finished
@@ -101,7 +172,7 @@ class Bot(object):
         """
         conn = self.__connect()
         if not conn:
-            return
+            raise FailedToConnectError
         while not self._finished:
             try:
                 conn.Process(1)
@@ -109,28 +180,6 @@ class Bot(object):
             except KeyboardInterrupt:
                 break
         return
-    def help(self, msg):
-        """This provides help, duh."""
-        args = msg.getBody()
-        try:
-            cmd, args = args.split(None, 1)
-        except:
-            cmd, args = args, ''
-        if not args:
-            command_list = []
-            for kt in self.commands.keys():
-                if kt[1].endswith(r'\b'):
-                    command_list.append(kt[1][:-2])
-                else:
-                    if '|' not in kt[1]:
-                        command_list.append(kt[1])
-            return "Available commands: \n" + \
-                "\n".join(" * " + x for x in sorted(command_list)) + \
-                "\nRun 'help command' for more information on any command."
-        if args in self.commands:
-            ret = self.commands[args].__doc__
-            return ret
-        return "No such command."
     def join(self, msg):
         """Usage: join room@service"""
         args = msg.getBody()
@@ -189,36 +238,12 @@ class Bot(object):
                     typ='unavailable',
                     status='So long, and thanks for all the dice?'))
         self.rooms.pop(roomname + "@" + server)
+    def send(self, msg):
+        self.conn.send(msg)
     def _send(self, to_jid, text, type):
         if type == 'groupchat':
             to_jid.setResource('')
         self.conn.send(xmpp.protocol.Message(to_jid, text, type))
-    def __callback_message(self, conn, msg):
-        for node in msg.getChildren():
-            if node.getAttr('xmlns') == "http://jabber.org/protocol/muc#user" \
-                    or node.getNamespace() == 'jabber:x:conference':
-                roomname = msg.getFrom().getNode()
-                servicename = msg.getFrom().getDomain()
-                self_msg = xmpp.protocol.Message()
-                self_msg.setBody("join %s@%s" % (roomname, servicename))
-                return self.join(self_msg)
-        text = msg.getBody()
-        if msg.getType() == 'groupchat':
-            fromroom = msg.getFrom()
-            frmstr = fromroom.getNode() + "@" + fromroom.getDomain()
-            if frmstr in self.rooms and \
-                    self.rooms[frmstr] == fromroom.getResource():
-                return
-        if not text:
-            return
-        command = text
-        if command in self.commands:
-            try:
-                reply = self.commands[command](msg)
-            except Exception, e:
-                reply = "Bad command: %s" % e
-            if reply:
-                self._send(msg.getFrom(), reply, msg.getType())
 
 if __name__ == "__main__":
     class TestBot(Bot):
