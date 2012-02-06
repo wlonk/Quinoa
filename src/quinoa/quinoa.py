@@ -8,7 +8,10 @@ import os
 import sys
 import xmppony as xmpp
 import time
+from copy import copy
 from blinker import signal, Signal
+
+BOT_NAME = 'Wargle'
 
 class FailedToConnectError(Exception):
     pass
@@ -54,8 +57,9 @@ class OneToOneConversation(Conversation):
         return
 
 class MucConversation(Conversation):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, resource=None, *args, **kwargs):
         Conversation.__init__(self, *args, **kwargs)
+        self.resource = resource or BOT_NAME
         signal(self.id).connect(self.reply)
     def reply(self, msg):
         text = msg.getBody()
@@ -66,6 +70,7 @@ class MucConversation(Conversation):
             reply = '... '.join(reply)
             out_msg = msg.buildReply(reply)
             out_msg.getTo().setResource('')
+            out_msg.setType('groupchat')
             self.outgoing.send(out_msg)
         return
 
@@ -84,7 +89,7 @@ class Bot(object):
         else:
             self.__log = sys.stdout
         self.jid = xmpp.JID(jid)
-        self.resource = resource or self.__class__.__name__
+        self.resource = resource or BOT_NAME
         self.password = password
         self.rooms = {}
         self.conn = None
@@ -131,11 +136,16 @@ class Bot(object):
                 self_msg.setBody("join %s@%s" % (roomname, servicename))
                 return self.join(self_msg)
         if msg.getType() == 'groupchat':
-            frm = str(msg.getFrom())
-            if frm not in self.conversations:
-                self.conversations[frm] = MucConversation(frm)
-                self.conversations[frm].outgoing.connect(self.send)
-            signal(frm).send(msg)
+            frm = msg.getFrom().getResource()
+            room = copy(msg.getFrom())
+            room.setResource('')
+            room = str(room)
+            if room not in self.conversations:
+                self.conversations[room] = MucConversation(id=room,
+                                           resource=self.resource)
+                self.conversations[room].outgoing.connect(self.send)
+            if frm != self.conversations[room].resource:
+                signal(room).send(msg)
         else:
             frm = str(msg.getFrom())
             if frm not in self.conversations:
