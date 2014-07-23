@@ -5,3 +5,4 @@ src/quinoa.egg-info/
 src/quinoa/tyche.db
 deploy.sh
 production-dicebot.py
+.ropeproject/

@@ -18,28 +18,33 @@ from quinoa import Bot
 
 # ~~~~~~~ Special Option Parsing
 
+
 class JabberOptionParser(OptionParser):
     def exit(self, *args, **kwargs):
-        raise ValueError, "something made optparse exit."
+        raise ValueError("something made optparse exit.")
+
     def error(self, *args, **kwargs):
-        raise ValueError, "incorrect option or argument"
+        raise ValueError("incorrect option or argument")
 
 # ~~~~~~~ DATABASE definition
 path = '/home/kit/Desktop/hg-repos/quinoa/'
-#path = ''
 engine = sqlalchemy.create_engine('sqlite:///%styche.db' % path)
 Session = sqlalchemy.orm.sessionmaker(bind=engine)
 
 Base = sqlalchemy.ext.declarative.declarative_base()
+
+
 class User(Base):
     __tablename__ = 'users'
     jid = sqlalchemy.Column(sqlalchemy.Unicode, primary_key=True)
     batsignal = sqlalchemy.Column(sqlalchemy.Boolean)
     points = sqlalchemy.Column(sqlalchemy.Integer, default=0)
+
     def __init__(self, jid):
         self.jid = jid
         self.batsignal = True
         self.points = 0
+
     def __unicode__(self):
         aliases = ' a.k.a. '.join(unicode(a) for a in self.aliases)
         if not aliases:
@@ -48,40 +53,58 @@ class User(Base):
         if self.points == 1 or self.points == -1:
             s = ''
         return "%s (%s), %d point%s" % (aliases, self.jid, self.points, s)
+
     __str__ = __unicode__
+
 
 class JidAlias(Base):
     __tablename__ = 'jid_aliases'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
     additional_jid = sqlalchemy.Column(sqlalchemy.Unicode)
-    primary_jid = sqlalchemy.Column(sqlalchemy.Unicode, \
-                             sqlalchemy.ForeignKey('users.jid'))
-    user = sqlalchemy.orm.relation(User, \
-            backref=sqlalchemy.orm.backref('jid_aliases', order_by=id))
+    primary_jid = sqlalchemy.Column(
+        sqlalchemy.Unicode,
+        sqlalchemy.ForeignKey('users.jid')
+    )
+    user = sqlalchemy.orm.relation(
+        User,
+        backref=sqlalchemy.orm.backref('jid_aliases', order_by=id)
+    )
+
     def __init__(self, additional_jid):
         self.additional_jid = additional_jid
+
 
 class Alias(Base):
     __tablename__ = 'aliases'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
-    user_jid = sqlalchemy.Column(sqlalchemy.Unicode, \
-                             sqlalchemy.ForeignKey('users.jid'))
+    user_jid = sqlalchemy.Column(
+        sqlalchemy.Unicode,
+        sqlalchemy.ForeignKey('users.jid')
+    )
     name = sqlalchemy.Column(sqlalchemy.Unicode)
-    user = sqlalchemy.orm.relation(User, \
-            backref=sqlalchemy.orm.backref('aliases', order_by=id))
+    user = sqlalchemy.orm.relation(
+        User,
+        backref=sqlalchemy.orm.backref('aliases', order_by=id)
+    )
+
     def __init__(self, name):
         self.name = name
+
     def __unicode__(self):
         return self.name
+
     __str__ = __unicode__
+
 
 class PendingConnection(Base):
     __tablename__ = 'pending_connections'
     primary_jid = sqlalchemy.Column(sqlalchemy.Unicode)
     additional_jid = sqlalchemy.Column(sqlalchemy.Unicode, primary_key=True)
+
     def __init__(self, primary_jid, additional_jid):
         self.primary_jid = primary_jid
         self.additional_jid = additional_jid
+
     def process(self, msg):
         if msg.getBody().strip('!').lower() == 'y':
             ret = True
@@ -97,12 +120,15 @@ class PendingConnection(Base):
             ret = False
         return ret
 
+
 Base.metadata.create_all(engine)
 # ~~~~~~~ END DATABASE
+
 
 def owod(dice, diff, spec=False, will=False):
     def norm_roll(dice):
         return sorted(rand(1, 10) for x in xrange(dice))
+
     def spec_roll(dice):
         rolls = norm_roll(dice)
         tens = rolls.count(10)
@@ -129,6 +155,7 @@ def owod(dice, diff, spec=False, will=False):
         succs = max(0, succs - ones)
     return "%s (%s)" % (succs, ', '.join(map(str, ret)))
 
+
 def nwod(dice, again=10, rote=False):
     threshold = 8
     chance = False
@@ -146,13 +173,16 @@ def nwod(dice, again=10, rote=False):
                 pool[i] = rand(1, 10)
     addendum = pool
     while sum(i >= again for i in addendum):
-        addendum = sorted(rand(1, 10) for x in
-                   range(sum(i >= again for i in addendum)))
+        addendum = sorted(
+            rand(1, 10) for x in
+            range(sum(i >= again for i in addendum))
+        )
         pool.extend(addendum)
     successes = sum(i >= threshold for i in pool)
     if not successes:
         return "Failure (%s)" % ', '.join(str(x) for x in pool)
     return "Success %s (%s)" % (successes, ', '.join(str(x) for x in pool))
+
 
 def exalted(dice):
     pool = sorted(rand(1, 10) for x in xrange(dice))
@@ -165,6 +195,7 @@ def exalted(dice):
         return "Failure."
     return "%s successes." % succs
 
+
 def btvs(skill):
     rollage = skill + rand(1, 10)
     if rollage <= 8:
@@ -176,6 +207,7 @@ def btvs(skill):
     elif 21 <= rollage:
         ret = int(ceiling((rollage - 20) / 3.)) + 5
     return "%s (Total: %s)" % (ret, rollage)
+
 
 def allflesh(skill):
     die = rand(1, 10)
@@ -209,9 +241,13 @@ def allflesh(skill):
     elif 21 <= rollage:
         ret = int(ceiling((rollage - 20) / 3.)) + 5
     if rol:
-        return "%s (Total: %s, role of luck %s)" % \
-                (ret, rollage, ', '.join(str(x) for x in rol))
+        return "{} (Total: {}, role of luck {})".format(
+            ret,
+            rollage,
+            ', '.join(str(x) for x in rol),
+        )
     return "%s (Total: %s)" % (ret, rollage)
+
 
 def qin():
     yin = rand(1, 10)
@@ -224,6 +260,7 @@ def qin():
     else:
         kind = 'balanced'
     return "%s (%s)" % (ret, kind)
+
 
 def l5r(pool, adds, target, unskilled=False, emphasized=False):
     rolls = []
@@ -244,6 +281,7 @@ def l5r(pool, adds, target, unskilled=False, emphasized=False):
         return "Failure."
     return "Success (%s)" % res
 
+
 def fudge(num):
     res = sum(rand(-1, 1) for i in xrange(num))
     if res < 0:
@@ -252,6 +290,7 @@ def fudge(num):
         return "0"
     if res > 0:
         return "+%s" % res
+
 
 def ork(dice):
     res = defaultdict(int)
@@ -264,8 +303,10 @@ def ork(dice):
     vals.reverse()
     return ', '.join(map(str, vals))
 
+
 def wushu(dice, trait):
     return "%s" % sum(x <= trait for x in (rand(1, 6) for y in xrange(dice)))
+
 
 def alternity(skill, situation):
     if not (-5 < situation < 7):
@@ -277,14 +318,14 @@ def alternity(skill, situation):
         -3: lambda: -rand(1, 8),
         -2: lambda: -rand(1, 6),
         -1: lambda: -rand(1, 4),
-         0: lambda: 0,
-         1: lambda: rand(1, 4),
-         2: lambda: rand(1, 6),
-         3: lambda: rand(1, 8),
-         4: lambda: rand(1, 12),
-         5: lambda: rand(1, 20),
-         6: lambda: rand(1, 20) + rand(1, 20),
-         7: lambda: rand(1, 20) + rand(1, 20) + rand(1, 20),
+        0: lambda: 0,
+        1: lambda: rand(1, 4),
+        2: lambda: rand(1, 6),
+        3: lambda: rand(1, 8),
+        4: lambda: rand(1, 12),
+        5: lambda: rand(1, 20),
+        6: lambda: rand(1, 20) + rand(1, 20),
+        7: lambda: rand(1, 20) + rand(1, 20) + rand(1, 20),
     }
     if control == 20:
         return "Critical Failure!"
@@ -299,6 +340,7 @@ def alternity(skill, situation):
         ret = "Amazing (%s)" % control
     return ret
 
+
 def in_nomine(skill):
     res = rand(1, 6) + rand(1, 6)
     check = rand(1, 6)
@@ -310,6 +352,7 @@ def in_nomine(skill):
         return "Success. (%s)" % check
     return "Failure. (%s)" % check
 
+
 def pendragon(skill, modifiers):
     res = rand(1, 20)
     if skill + modifiers == res:
@@ -319,6 +362,7 @@ def pendragon(skill, modifiers):
     if res < skill + modifiers:
         return "Success (%s)" % res
     return "Failure (%s)" % res
+
 
 def shadowrun(pool, leftover, ro6):
     dice = [rand(1, 6) for i in xrange(pool)]
@@ -340,6 +384,7 @@ def shadowrun(pool, leftover, ro6):
     return "%s hits. (%s)" % \
         (successes, ', '.join([str(x) for x in sorted(dice)]))
 
+
 def hande(heaven, earth, passing_grade=1):
     pool = [rand(1, 10) for i in range(heaven)]
     num_rerolls_used = 0
@@ -357,11 +402,9 @@ def hande(heaven, earth, passing_grade=1):
     if hits == passing_grade:
         ret = "Pass (%s)" % (', '.join(str(x) for x in pool))
     if hits > passing_grade:
-        ret = "Pass +%d (%s)" % \
-                (hits - passing_grade, ', '.join(str(x) for x in pool))
+        ret = "Pass +{} ({})".format(hits - passing_grade, ', '.join(str(x) for x in pool))
     if hits < passing_grade:
-        ret = "Fail -%d (%s)" % \
-                (passing_grade - hits, ', '.join(str(x) for x in pool))
+        ret = "Fail -{} ({})".format(passing_grade - hits, ', '.join(str(x) for x in pool))
     if num_rerolls_used < abs(earth):
         val = abs(earth) - num_rerolls_used
         ret += " (%d reroll" % val
@@ -370,8 +413,10 @@ def hande(heaven, earth, passing_grade=1):
         ret += " left)"
     return ret
 
+
 def generic(num, size):
     return ', '.join(map(str, (rand(1, size) for x in xrange(num))))
+
 
 class DiceBot(Bot):
     def __init__(self, *args, **kwargs):
@@ -379,13 +424,13 @@ class DiceBot(Bot):
         self.mode = 'nwod'
         self.deck = None
         self.players = None
+
     def on_connect(self):
         join = xmpp.protocol.Message()
         join.setBody('join ooc@rooms.transneptune.net')
         self.join(join)
+
     def register_commands(self):
-        #self.commands[r'%s' % '|'.join(SOUND_EFFECTS)] = self.sound_effects
-        #self.commands[r'(?i)%s' % '|'.join(MEMES)] = self.meme
         # Dice tasks
         self.commands[r'[Mm]ode\b'] = self.mode
         self.commands[r'[Rr]oll\b'] = self.roll
@@ -403,11 +448,12 @@ class DiceBot(Bot):
         self.commands[r'[Pp]eek\b'] = self.cards_peek
         self.commands[r'[Dd]iscard\b'] = self.cards_discard
         self.commands[r'[Ff]inish\b'] = self.cards_finish
+
     def cards_shuffle(self, msg):
         """Usage:
             shuffle
         """
-        self.cards_finish(msg) # sloppy, but it needs a msg
+        self.cards_finish(msg)  # sloppy, but it needs a msg
         self.deck = []
         self.players = {}
         for suit in ('Hearts', 'Spades', 'Diamonds', 'Clubs'):
@@ -415,6 +461,7 @@ class DiceBot(Bot):
                 self.deck.append((value, suit))
         shuffle(self.deck)
         return "%i-card deck ready." % len(self.deck)
+
     def cards_deal(self, msg):
         """Usage:
             deal me <number of cards>
@@ -437,9 +484,13 @@ class DiceBot(Bot):
             player.append(self.deck.pop())
         ret = "%i cards dealt; %i left. Hand sizes are: " % (number,
                                                              len(self.deck))
-        ret += ', '.join(["%s with %i" % (str(jid), len(hand)) for jid, hand in
-                                                    self.players.iteritems()])
+        ret += ', '.join([
+            "%s with %i" % (str(jid), len(hand))
+            for jid, hand in
+            self.players.iteritems()
+        ])
         return ret
+
     def cards_show(self, msg):
         """Usage:
             reveal my hand
@@ -452,6 +503,7 @@ class DiceBot(Bot):
                 hand = ', '.join("%s of %s" % x for x in self.players[frm])
                 return "%s has %s" % (str(frm), hand)
         return
+
     def cards_peek(self, msg):
         """Usage:
             peek
@@ -464,6 +516,7 @@ class DiceBot(Bot):
                         or "No cards.")
         self.conn.send(out_msg)
         return "OK."
+
     def cards_discard(self, msg):
         """Usage:
             discard <value of suit>|all
@@ -490,6 +543,7 @@ class DiceBot(Bot):
             except ValueError:
                 return "You never had that card to begin with."
             return "Done. You've got %i cards left." % len(self.players[frm])
+
     def cards_finish(self, msg):
         """Usage:
             finish
@@ -499,6 +553,7 @@ class DiceBot(Bot):
         self.players = None
         self.deck = None
         return "Deck and hands destroyed."
+
     def points(self, msg):
         """Give points to someone on the batsignal.  Usage: give USER X points"""
         args = msg.getBody()
@@ -519,6 +574,7 @@ class DiceBot(Bot):
         if user.points > 9000:
             return "WHAT?  OVER 9000!?"
         return "OK."
+
     def remember_me(self, msg):
         """Usage: account [-q] space separated aliases "with quotes for multiword aliases"
 
@@ -534,12 +590,19 @@ class DiceBot(Bot):
             return
         account = msg.getFrom().getNode() + '@' + msg.getFrom().getDomain()
         parser = JabberOptionParser()
-        parser.add_option("-q", action="store_true", dest="quiet",
-                help="Ignore the BATSIGNAL.")
-        parser.add_option("-j", action="store_true", dest="jid",
-                help="Interpret args as JIDs.")
-        opts, args = parser.parse_args([s.decode('utf-8') for s in \
-                shlex.split(args.encode('utf-8'))])
+        parser.add_option(
+            "-q", action="store_true", dest="quiet",
+            help="Ignore the BATSIGNAL."
+        )
+        parser.add_option(
+            "-j", action="store_true", dest="jid",
+            help="Interpret args as JIDs."
+        )
+        opts, args = parser.parse_args([
+            s.decode('utf-8')
+            for s in
+            shlex.split(args.encode('utf-8'))
+        ])
         # if another JID is specified, create a State, add it to self.convos,
         # and do a special call to self.send, to alert the other JID to reply
         # with a confirmation or denial.  Then, return with a note about the
@@ -558,10 +621,12 @@ class DiceBot(Bot):
             user.aliases = [Alias(x) for x in args]
             ret = unicode(user)
         if args and opts.jid:
-            confirm_msg = "%s claims you are another Jabber identity of " \
-                 "theirs; if this is false, ignore this message or reply " \
-                 "with !n.  If it is true, reply with !y." \
-                 % (msg.getFrom().getNode() + "@" + msg.getFrom().getDomain())
+            confirm_msg = (
+                "%s claims you are another Jabber identity of "
+                "theirs; if this is false, ignore this message or reply "
+                "with !n.  If it is true, reply with !y."
+                % (msg.getFrom().getNode() + "@" + msg.getFrom().getDomain())
+            )
             from_ = msg.getFrom()
             from_.setResource('')
             for jid in args:
@@ -575,6 +640,7 @@ class DiceBot(Bot):
             ret = "Message sent to other identity."
         session.commit()
         return ret
+
     def who_is(self, msg):
         """Ask who someone is, by alias or email."""
         args = msg.getBody().strip().rstrip('?').strip()
@@ -591,10 +657,14 @@ class DiceBot(Bot):
                 ret.append(v)
             if args.lower() in (x.name.lower() for x in v.aliases):
                 ret.append(v)
-            if args.lower() in (x.additional_jid.lower() \
-                    for x in v.jid_aliases):
+            if args.lower() in (
+                x.additional_jid.lower()
+                for x in
+                v.jid_aliases
+            ):
                 ret.append(v)
         return '\n'.join(unicode(x) for x in ret)
+
     def batsignal(self, msg):
         """Call for the troops!"""
         if msg.getType() != 'groupchat':
@@ -611,23 +681,28 @@ class DiceBot(Bot):
         for u in session.query(User).all():
             if u.batsignal:
                 self.invite(room, xmpp.protocol.JID(u.jid))
+
     def user_in_room(self, room, jid):
         """Checks a room for a JID's presence.  If the room is anonymous,
         returns False"""
         # TODO make this fo' real.
         return False
+
     def invite(self, room, jid):
         """Invites a JID to a room, if that JID is not already there."""
         if self.user_in_room(room, jid):
             return
         msg = xmpp.protocol.Message(to=jid, frm=self.jid)
-        body = xmpp.simplexml.Node(tag='x',
-                                   attrs={
-                                    'xmlns': 'jabber:x:conference',
-                                    'jid': room,
-                                   })
+        body = xmpp.simplexml.Node(
+            tag='x',
+            attrs={
+                'xmlns': 'jabber:x:conference',
+                'jid': room,
+            }
+        )
         msg.addChild(node=body)
         self.conn.send(msg)
+
     def confirm_user(self, msg):
         """Creates a new user connection, or destroys a pending one, based on
         input."""
@@ -636,8 +711,11 @@ class DiceBot(Bot):
         additional = unicode(additional)
         session = Session()
         try:
-            pending = session.query(PendingConnection) \
-                    .filter_by(additional_jid=additional).first()
+            pending = session.query(
+                PendingConnection
+            ).filter_by(
+                additional_jid=additional
+            ).first()
         except KeyError:
             return "Sorry, something went wrong.  " \
                    "Please contact kit@transneptune.net"
@@ -650,6 +728,7 @@ class DiceBot(Bot):
         if approved:
             return "Thank you!"
         return "Sorry to trouble you."
+
     def mode(self, msg):
         """Set or view the bot's current game mode.
             * mode
@@ -659,21 +738,21 @@ class DiceBot(Bot):
             * mode <value>
                 if <value> in possible modes, sets mode to that value."""
         modes = set([
-                "owod",
-                "nwod",
-                "exalted",
-                "btvs",
-                "allflesh",
-                "qin",
-                "orkworld",
-                "l5r",
-                "wushu",
-                "alternity",
-                "innomine",
-                "pendragon",
-                "shadowrun",
-                "h+e"
-                ])
+            "owod",
+            "nwod",
+            "exalted",
+            "btvs",
+            "allflesh",
+            "qin",
+            "orkworld",
+            "l5r",
+            "wushu",
+            "alternity",
+            "innomine",
+            "pendragon",
+            "shadowrun",
+            "h+e"
+        ])
         args = msg.getBody()
         try:
             cmd, args = args.split(None, 1)
@@ -685,6 +764,7 @@ class DiceBot(Bot):
             self.mode = args
             return "Mode set: %s" % args
         return "No such mode."
+
     def roll(self, msg):
         """There are a number of ways to roll dice.  In all cases, replace # with one or more numerals, and all elements in parentheses are optional:
             * oWoD: roll # at # (s) (w)
@@ -782,8 +862,7 @@ class DiceBot(Bot):
         if self.mode == "l5r":
             _l5r = re.compile(r'^(\d+)k(\d+) (\d+)( u)?( e)?$')
             if _l5r.search(args):
-                pool, adds, target, unskilled, emphasized = \
-                                                _l5r.search(args).groups()
+                pool, adds, target, unskilled, emphasized = _l5r.search(args).groups()
                 try:
                     pool = int(pool)
                     adds = int(adds)
@@ -888,6 +967,7 @@ class DiceBot(Bot):
         if _rick.search(args):
             time.sleep(rand(1, 3))
             return "http://is.gd/czLKl"
+
     def initiative(self, msg):
         """Roll initiative.
         * oWoD: init (name:value)*
@@ -904,12 +984,13 @@ class DiceBot(Bot):
                     actors[k] = int(v)
                 for k, v in actors.items():
                     actors[k] = (rand(1, 10) + v, v)
-                return ', '.join(map(lambda x: "%s: %s (%s)" % \
-                        (x[0], x[1][0], x[1][1]), \
-                        reversed(sorted(actors.items(), \
-                                 key=lambda (k, v): (v, k)))))
+                return ', '.join(map(lambda x: "%s: %s (%s)".format(
+                    x[0], x[1][0], x[1][1]),
+                    reversed(sorted(actors.items(), key=lambda (k, v): (v, k)))),
+                )
         if self.mode == "shadowrun":
             _shadowrun = re.compile(r'^(\w+:\d+)( \w+:\d+)*$')
+
             def shadowrun_sort(a, b):
                 a, a2 = a
                 b, b2 = b
@@ -928,19 +1009,26 @@ class DiceBot(Bot):
                     k, v = e.split(':')
                     v = int(v)
                     dice = [rand(1, 6) for i in xrange(v)]
-                    actors[k] = sum(x >=5 for x in dice)
+                    actors[k] = sum(x >= 5 for x in dice)
                     if actors[k] == 0 and dice.count(1) > (len(dice) / 2.):
                         actors[k] = "%scg" % (actors[k] + v)
                     elif actors[k] > 0 and dice.count(1) > (len(dice) / 2.):
                         actors[k] = "%sg" % (actors[k] + v)
                     else:
                         actors[k] = "%s" % (actors[k] + v)
-                return ', '.join("%s: %s" % x for x in \
-                        reversed(sorted(actors.items(), \
-                        key=lambda (k, v): (v, k), cmp=shadowrun_sort)))
+                return ', '.join(
+                    "%s: %s".format(
+                        reversed(
+                            sorted(
+                                actors.items(),
+                                key=lambda (k, v): (v, k),
+                                cmp=shadowrun_sort
+                            )
+                        )
+                    )
+                )
         return
 
 if __name__ == "__main__":
     b = DiceBot('test@transneptune.net', 'Tyche', '^^password^^')
     b.serve()
-
